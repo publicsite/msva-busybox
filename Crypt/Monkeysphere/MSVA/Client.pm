@@ -79,7 +79,10 @@
     my $response = $ua->request($request);
 
     my $status = $response->status_line;
-    my $ret = from_json($response->content);
+    my $ret;
+    if ($status eq '200 OK') {
+      $ret = from_json($response->content);
+    }
 
     return $status, $ret;
   }

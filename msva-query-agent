@@ -35,15 +35,14 @@ my $pkcdata = do {
 my ($status,$ret) = Crypt::Monkeysphere::MSVA::Client->query_agent($context,$peer,$pkctype, $pkcdata, $ENV{MONKEYSPHERE_VALIDATION_AGENT_SOCKET});
 
 msvalog('info', "status: %s\n", $status);
-msvalog('info', "valid: %s\n", $ret->{valid});
-msvalog('info', "message: %s\n", $ret->{message});
+if (defined $ret) {
+  msvalog('info', "valid: %s\n", $ret->{valid});
+  msvalog('fatal', "message: %s\n", $ret->{message});
+  exit 0
+    if ($ret->{valid});
+}
+exit 1;
 
-if ($ret->{valid}) {
-    exit 0;
-}
-else {
-    exit 1;
-}
 __END__
 
 =head1 NAME
