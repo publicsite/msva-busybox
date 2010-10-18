@@ -32,7 +32,7 @@ my $pkcdata = do {
   <STDIN>;
 };
 
-my ($status,$ret) = Crypt::Monkeysphere::MSVA::Client->query_agent($context,$peer,$pkctype, $pkcdata);
+my ($status,$ret) = Crypt::Monkeysphere::MSVA::Client->query_agent($context,$peer,$pkctype, $pkcdata, $ENV{MONKEYSPHERE_VALIDATION_AGENT_SOCKET});
 
 msvalog('info', "status: %s\n", $status);
 msvalog('info', "valid: %s\n", $ret->{valid});

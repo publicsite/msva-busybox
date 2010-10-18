@@ -46,13 +46,15 @@
     my $peer = shift;
     my $pkctype = shift;
     my $pkcdata = shift;
+    my $msvasocket = shift;
+
+    if (! defined $msvasocket or $msvasocket eq '') {
+      $msvasocket = 'http://localhost:8901';
+    }
 
     my $apd = create_apd($context, $peer, $pkctype, $pkcdata);
 
     my $apdjson = to_json($apd);
-
-    # get msva socket from environment
-    my $msvasocket = $ENV{MONKEYSPHERE_VALIDATION_AGENT_SOCKET};
 
     # create the user agent
     my $ua = LWP::UserAgent->new;
@@ -73,6 +75,7 @@
 	$apdjson,
 	);
 
+    msvalog('debug', "Contacting MSVA at %s\n", $requesturl);
     my $response = $ua->request($request);
 
     my $status = $response->status_line;
