@@ -8,19 +8,15 @@
 VERSION=`dpkg-parsechangelog -lChangelog | grep ^Version: | cut -f2 -d\ `
 DEBIAN_VERSION=`dpkg-parsechangelog | grep ^Version: | cut -f2 -d\ `
 
-all: msva-perl.1 msva-query-agent.1 msva-review-cert.1
+MANPAGES=msva-perl.1 msva-query-agent.1 msva-review-cert.1
 
-msva-perl.1: msva-perl
-	pod2man msva-perl msva-perl.1
+all: $(MANPAGES)
 
-msva-query-agent.1: msva-query-agent
-	pod2man msva-query-agent msva-query-agent.1
-
-msva-review-cert.1: msva-review-cert
-	pod2man msva-review-cert msva-review-cert.1
+%.1: %
+	pod2man $< $@
 
 clean: 
-	rm -f msva-perl.1 msva-query-agent.1 msva-review-cert.1
+	rm -f $(MANPAGES)
 
 debian-package:
 	git buildpackage -uc -us
