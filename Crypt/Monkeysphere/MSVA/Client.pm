@@ -29,7 +29,6 @@
   use Crypt::Monkeysphere::MSVA::Logger;
   use LWP::UserAgent;
   use HTTP::Request;
-  require Crypt::X509;
 
   sub log {
     my $self = shift;
@@ -87,15 +86,17 @@
     $self->log('debug', "pkctype: %s\n", $pkctype);
 
     if ($pkctype eq 'x509der') {
-      my $cert = Crypt::X509->new(cert => $pkcdata);
-      if ($cert->error) {
-	die;
-      };
-      $self->log('info', "x509der certificate loaded.\n");
-      $self->log('verbose', "cert subject: %s\n", $cert->subject_cn());
-      $self->log('verbose', "cert issuer: %s\n", $cert->issuer_cn());
-      $self->log('verbose', "cert pubkey algo: %s\n", $cert->PubKeyAlg());
-      $self->log('verbose', "cert pubkey: %s\n", unpack('H*', $cert->pubkey()));
+      if (Module::Load::Conditional::can_load('modules' => { 'Crypt::X509' => undef })) {
+        my $cert = Crypt::X509->new(cert => $pkcdata);
+        if ($cert->error) {
+          die;
+        };
+        $self->log('info', "x509der certificate loaded.\n");
+        $self->log('verbose', "cert subject: %s\n", $cert->subject_cn());
+        $self->log('verbose', "cert issuer: %s\n", $cert->issuer_cn());
+        $self->log('verbose', "cert pubkey algo: %s\n", $cert->PubKeyAlg());
+        $self->log('verbose', "cert pubkey: %s\n", unpack('H*', $cert->pubkey()));
+      }
     } else {
 	$self->log('error', "unknown pkc type '%s'.\n", $pkctype);
     };
