@@ -104,7 +104,6 @@
       msvalog('verbose', "cert pubkey: %s\n", unpack('H*', $cert->pubkey()));
     } else {
 	msvalog('error', "unknown pkc type '%s'.\n", $pkctype);
-	die;
     };
 
     return {
