@@ -29,6 +29,7 @@
   use Crypt::Monkeysphere::MSVA::Logger;
   use LWP::UserAgent;
   use HTTP::Request;
+  use Module::Load::Conditional;
 
   sub log {
     my $self = shift;
@@ -86,8 +87,9 @@
     $self->log('debug', "pkctype: %s\n", $pkctype);
 
     if ($pkctype eq 'x509der') {
-      if $self->{logger}->is_logging_at('verbose') {
+      if ($self->{logger}->is_logging_at('verbose')) {
         if (Module::Load::Conditional::can_load('modules' => { 'Crypt::X509' => undef })) {
+          require Crypt::X509;
           my $cert = Crypt::X509->new(cert => $pkcdata);
           if ($cert->error) {
             $self->log('error', "failed to parse this X.509 cert before sending it to the agent\n");
