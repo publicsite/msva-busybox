@@ -23,7 +23,7 @@ use Crypt::Monkeysphere::MSVA;
 
 my $server = Crypt::Monkeysphere::MSVA->new();
 $server->run(host=>'localhost',
-             log_level=> Crypt::Monkeysphere::MSVA::get_log_level(),
+             log_level=> $server->logger->get_log_level(),
              user => POSIX::geteuid(),  # explicitly choose regular user and group (avoids spew)
              group => POSIX::getegid(),
              msva=>$server);

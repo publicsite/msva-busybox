@@ -26,7 +26,6 @@
   use strict;
   use warnings;
 
-  use Crypt::Monkeysphere::MSVA qw( msvalog );
   use IO::File;
   use Module::Load::Conditional;
 
@@ -36,21 +35,22 @@
     my $uid = shift;
     my $fprs = shift;
     my $clientpids = shift;
+    my $logger = shift;
     my @subvalid_key_fprs = @{$fprs};
 
-    msvalog('debug', "%d subvalid_key_fprs\n", $#subvalid_key_fprs+1);
+    $logger->log('debug', "%d subvalid_key_fprs\n", $#subvalid_key_fprs+1);
 
     if (! Module::Load::Conditional::can_load('modules' => { 'Gtk2' => undef })) {
-      msvalog('info', "Gtk2 Perl module is unavailable, so no marginal UI presented\n");
+      $logger->log('info', "Gtk2 Perl module is unavailable, so no marginal UI presented\n");
       return 0;
     }
 
 
     foreach my $keyfpr (@subvalid_key_fprs) {
       my $fprx = sprintf('0x%.40s', $keyfpr->{fpr}->as_hex_string);
-      msvalog('debug', "checking on %s\n", $fprx);
+      $logger->log('debug', "checking on %s\n", $fprx);
       foreach my $gpgkey ($gnupg->get_public_keys_with_sigs($fprx)) {
-        msvalog('debug', "found key %.40s\n", $gpgkey->fingerprint->as_hex_string);
+        $logger->log('debug', "found key %.40s\n", $gpgkey->fingerprint->as_hex_string);
         # we're going to prompt the user here if we have any
         # relevant certifiers:
         my @valid_certifiers;
@@ -63,13 +63,13 @@
         # That's a mess, but i'm not sure what the better thing
         # to do is.
         foreach my $user_id ($gpgkey->user_ids) {
-          msvalog('debug', "found EE User ID %s\n", $user_id->as_string);
+          $logger->log('debug', "found EE User ID %s\n", $user_id->as_string);
           if ($user_id->as_string eq $uid) {
             # get a list of the certifiers of the relevant User ID for the key
             foreach my $cert (@{$user_id->signatures}) {
               if ($cert->hex_id =~ /^([A-Fa-f0-9]{16})$/) {
                 my $certid = $1;
-                msvalog('debug', "found certifier 0x%.16s\n", $certid);
+                $logger->log('debug', "found certifier 0x%.16s\n", $certid);
                 if ($cert->is_valid()) {
                   foreach my $certifier ($gnupg->get_public_keys(sprintf('0x%.40s!', $certid))) {
                     my $valid_cuid = 0;
@@ -94,7 +94,7 @@
                   }
                 }
               } else {
-                msvalog('error', "certifier ID does not fit expected pattern '%s'\n", $cert->hex_id);
+                $logger->log('error', "certifier ID does not fit expected pattern '%s'\n", $cert->hex_id);
               }
             }
           }
@@ -104,7 +104,7 @@
           # certifiers, and a separate list of marginally-valid
           # certifiers.
           if ($#valid_certifiers < 0) {
-            msvalog('info', "No valid certifiers, so no marginal UI\n");
+            $logger->log('info', "No valid certifiers, so no marginal UI\n");
           } else {
             my $certifier_list = join("\n", map { sprintf("%s [%s]",
                                                           $_->{user_id},
@@ -150,8 +150,8 @@ GnuPG calculated validity for the peer: %s",
             if ($#clienttext >= 0) {
               $tip = sprintf("%s\n\nRequested by:\n%s\n", $tip, join("\n", @clienttext));
             }
-            msvalog('info', "%s\n", $msg);
-            msvalog('verbose', "%s\n", $tip);
+            $logger->log('info', "%s\n", $msg);
+            $logger->log('verbose', "%s\n", $tip);
 
             my $resp = prompt($uid, $msg, $tip);
             if ($resp) {

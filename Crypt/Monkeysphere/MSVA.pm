@@ -23,11 +23,12 @@
     use Exporter   ();
     our (@EXPORT_OK,@ISA);
     @ISA = qw(Exporter);
-    @EXPORT_OK = qw( &msvalog &reviewcert );
+    @EXPORT_OK = qw( &reviewcert );
   }
   our @EXPORT_OK;
 
   use Crypt::Monkeysphere::MSVA::MarginalUI;
+  use Crypt::Monkeysphere::MSVA::Logger;
   use parent qw(HTTP::Server::Simple::CGI);
   require Crypt::X509;
   use Regexp::Common qw /net/;
@@ -66,20 +67,10 @@
   my $default_keyserver = 'hkp://pool.sks-keyservers.net';
   my $default_keyserver_policy = 'unlessvalid';
 
-# Net::Server log_level goes from 0 to 4
-# this is scaled to match.
-  my %loglevels = (
-                   'silent' => 0,
-                   'quiet' => 0.25,
-                   'fatal' => 0.5,
-                   'error' => 1,
-                   'info' => 2,
-                   'verbose' => 3,
-                   'debug' => 4,
-                   'debug1' => 4,
-                   'debug2' => 5,
-                   'debug3' => 6,
-                  );
+  my $logger = Crypt::Monkeysphere::MSVA::Logger->new($ENV{MSVA_LOG_LEVEL});
+  sub logger {
+    return $logger;
+  }
 
   my $rsa_decoder = Convert::ASN1->new;
   $rsa_decoder->prepare(q<
@@ -90,25 +81,12 @@
    }
           >);
 
-  sub msvalog {
-    my $msglevel = shift;
-
-    my $level = $loglevels{lc($ENV{MSVA_LOG_LEVEL})};
-    $level = $loglevels{error} if (! defined $level);
-
-    if ($loglevels{lc($msglevel)} <= $level) {
-      printf STDERR @_;
-    }
-  };
-
-  sub get_log_level {
-    my $level = $loglevels{lc($ENV{MSVA_LOG_LEVEL})};
-    $level = $loglevels{error} if (! defined $level);
-    return $level;
-  }
-
   sub net_server {
     return 'Net::Server::MSVA';
+  };
+
+  sub msvalog {
+    return $logger->log(@_);
   };
 
   sub new {
@@ -613,7 +591,8 @@
             my $resp = Crypt::Monkeysphere::MSVA::MarginalUI->ask_the_user($gnupg,
                                                                            $uid,
                                                                            \@subvalid_key_fprs,
-                                                                           getpidswithsocketinode($clientinfo->{inode}));
+                                                                           getpidswithsocketinode($clientinfo->{inode}),
+                                                                           $logger);
             msvalog('info', "response: %s\n", $resp);
             if ($resp) {
               $ret->{valid} = JSON::true;
