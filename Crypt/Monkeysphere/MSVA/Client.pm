@@ -86,16 +86,21 @@
     $self->log('debug', "pkctype: %s\n", $pkctype);
 
     if ($pkctype eq 'x509der') {
-      if (Module::Load::Conditional::can_load('modules' => { 'Crypt::X509' => undef })) {
-        my $cert = Crypt::X509->new(cert => $pkcdata);
-        if ($cert->error) {
-          die;
-        };
-        $self->log('info', "x509der certificate loaded.\n");
-        $self->log('verbose', "cert subject: %s\n", $cert->subject_cn());
-        $self->log('verbose', "cert issuer: %s\n", $cert->issuer_cn());
-        $self->log('verbose', "cert pubkey algo: %s\n", $cert->PubKeyAlg());
-        $self->log('verbose', "cert pubkey: %s\n", unpack('H*', $cert->pubkey()));
+      if $self->{logger}->is_logging_at('verbose') {
+        if (Module::Load::Conditional::can_load('modules' => { 'Crypt::X509' => undef })) {
+          my $cert = Crypt::X509->new(cert => $pkcdata);
+          if ($cert->error) {
+            $self->log('error', "failed to parse this X.509 cert before sending it to the agent\n");
+          } else {
+            $self->log('info', "x509der certificate loaded.\n");
+            $self->log('verbose', "cert subject: %s\n", $cert->subject_cn());
+            $self->log('verbose', "cert issuer: %s\n", $cert->issuer_cn());
+            $self->log('verbose', "cert pubkey algo: %s\n", $cert->PubKeyAlg());
+            $self->log('verbose', "cert pubkey: %s\n", unpack('H*', $cert->pubkey()));
+          }
+        } else {
+          $self->log('verbose', "X.509 cert going to agent but we cannot inspect it without Crypt::X509\n");
+        }
       }
     } else {
 	$self->log('error', "unknown pkc type '%s'.\n", $pkctype);
