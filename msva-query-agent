@@ -25,7 +25,14 @@ use Crypt::Monkeysphere::MSVA::Client;
 my $context = shift;
 my $peer = shift;
 my $pkctype = shift || 'x509der';
-my ($status,$ret) = Crypt::Monkeysphere::MSVA::Client->query_agent($context,$peer,$pkctype);
+
+# load raw pkc data from stdin
+my $pkcdata = do {
+  local $/; # slurp!
+  <STDIN>;
+};
+
+my ($status,$ret) = Crypt::Monkeysphere::MSVA::Client->query_agent($context,$peer,$pkctype, $pkcdata);
 
 msvalog('info', "status: %s\n", $status);
 msvalog('info', "valid: %s\n", $ret->{valid});

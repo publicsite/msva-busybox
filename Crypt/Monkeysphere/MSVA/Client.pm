@@ -45,15 +45,16 @@
     my $context = shift;
     my $peer = shift;
     my $pkctype = shift;
+    my $pkcdata = shift;
 
-    my $apd = create_apd($context, $peer, $pkctype);
+    my $apd = create_apd($context, $peer, $pkctype, $pkcdata);
 
     my $apdjson = to_json($apd);
 
     # get msva socket from environment
     my $msvasocket = $ENV{MONKEYSPHERE_VALIDATION_AGENT_SOCKET};
 
-    # creat the user agent
+    # create the user agent
     my $ua = LWP::UserAgent->new;
 
     my $headers = HTTP::Headers->new(
@@ -84,15 +85,7 @@
     my $context = shift;
     my $peer = shift;
     my $pkctype = shift;
-
-    my $pkcdata;
-    my $pkcdataraw;
-
-    # load raw pkc data from stdin
-    $pkcdataraw = do {
-      local $/; # slurp!
-      <STDIN>;
-    };
+    my $pkcdata = shift;
 
     msvalog('debug', "context: %s\n", $context);
     msvalog('debug', "peer: %s\n", $peer);
@@ -100,7 +93,7 @@
 
 
     if ($pkctype eq 'x509der') {
-      my $cert = Crypt::X509->new(cert => $pkcdataraw);
+      my $cert = Crypt::X509->new(cert => $pkcdata);
       if ($cert->error) {
 	die;
       };
@@ -114,19 +107,15 @@
 	die;
     };
 
-    # remap raw pkc data into numeric array
-    my @remap = map(ord, split(//,$pkcdataraw));
-
-    my %apd = (
-	context => $context,
-	peer => $peer,
-	pkc => {
-	    type => $pkctype,
-	    data => \@remap,
-	},
-	);
-
-    return \%apd;
+    return {
+            context => $context,
+            peer => $peer,
+            pkc => {
+                    type => $pkctype,
+                    # remap raw pkc data into numeric array
+                    data => [map(ord, split(//,$pkcdata))],
+                   },
+           };
   }
 
   1;
