@@ -19,7 +19,6 @@
 use warnings;
 use strict;
 
-use Crypt::Monkeysphere::MSVA qw( msvalog );
 use Crypt::Monkeysphere::MSVA::Client;
 
 my $context = shift;
@@ -32,12 +31,17 @@ my $pkcdata = do {
   <STDIN>;
 };
 
-my ($status,$ret) = Crypt::Monkeysphere::MSVA::Client->query_agent($context,$peer,$pkctype, $pkcdata, $ENV{MONKEYSPHERE_VALIDATION_AGENT_SOCKET});
+my $client = Crypt::Monkeysphere::MSVA::Client->new(
+                                                    socket => $ENV{MONKEYSPHERE_VALIDATION_AGENT_SOCKET},
+                                                    log_level => $ENV{MSVA_LOG_LEVEL},
+                                                   );
 
-msvalog('info', "status: %s\n", $status);
+my ($status,$ret) = $client->query_agent($context,$peer,$pkctype,$pkcdata);
+
+$client->log('info', "status: %s\n", $status);
 if (defined $ret) {
-  msvalog('info', "valid: %s\n", $ret->{valid});
-  msvalog('fatal', "message: %s\n", $ret->{message});
+  $client->log('info', "valid: %s\n", $ret->{valid});
+  $client->log('fatal', "message: %s\n", $ret->{message});
   exit 0
     if ($ret->{valid});
 }

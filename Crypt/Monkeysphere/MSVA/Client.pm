@@ -25,39 +25,27 @@
 
   use strict;
   use warnings;
-
-  BEGIN {
-    use Exporter   ();
-    our (@EXPORT_OK,@ISA);
-    @ISA = qw(Exporter);
-    @EXPORT_OK = qw( &create_apd );
-  }
-  our @EXPORT_OK;
-
   use JSON;
-  use Crypt::Monkeysphere::MSVA qw( msvalog );
+  use Crypt::Monkeysphere::MSVA::Logger;
+  use LWP::UserAgent;
+  use HTTP::Request;
+  require Crypt::X509;
+
+  sub log {
+    my $self = shift;
+    $self->{logger}->log(@_);
+  }
 
   sub query_agent {
-    use LWP::UserAgent;
-    use HTTP::Request;
-
     my $self = shift;
     my $context = shift;
     my $peer = shift;
     my $pkctype = shift;
     my $pkcdata = shift;
-    my $msvasocket = shift;
 
-    if (! defined $msvasocket or $msvasocket eq '') {
-      $msvasocket = 'http://localhost:8901';
-    }
-
-    my $apd = create_apd($context, $peer, $pkctype, $pkcdata);
+    my $apd = $self->create_apd($context, $peer, $pkctype, $pkcdata);
 
     my $apdjson = to_json($apd);
-
-    # create the user agent
-    my $ua = LWP::UserAgent->new;
 
     my $headers = HTTP::Headers->new(
 	'Content-Type' => 'application/json',
@@ -66,7 +54,7 @@
 	'Accept' => 'application/json',
 	);
 
-    my $requesturl = $msvasocket . '/reviewcert';
+    my $requesturl = $self->{socket} . '/reviewcert';
 
     my $request = HTTP::Request->new(
 	'POST',
@@ -75,8 +63,8 @@
 	$apdjson,
 	);
 
-    msvalog('debug', "Contacting MSVA at %s\n", $requesturl);
-    my $response = $ua->request($request);
+    $self->log('debug', "Contacting MSVA at %s\n", $requesturl);
+    my $response = $self->{ua}->request($request);
 
     my $status = $response->status_line;
     my $ret;
@@ -88,28 +76,28 @@
   }
 
   sub create_apd {
+    my $self = shift;
     my $context = shift;
     my $peer = shift;
     my $pkctype = shift;
     my $pkcdata = shift;
 
-    msvalog('debug', "context: %s\n", $context);
-    msvalog('debug', "peer: %s\n", $peer);
-    msvalog('debug', "pkctype: %s\n", $pkctype);
-
+    $self->log('debug', "context: %s\n", $context);
+    $self->log('debug', "peer: %s\n", $peer);
+    $self->log('debug', "pkctype: %s\n", $pkctype);
 
     if ($pkctype eq 'x509der') {
       my $cert = Crypt::X509->new(cert => $pkcdata);
       if ($cert->error) {
 	die;
       };
-      msvalog('info', "x509der certificate loaded.\n");
-      msvalog('verbose', "cert subject: %s\n", $cert->subject_cn());
-      msvalog('verbose', "cert issuer: %s\n", $cert->issuer_cn());
-      msvalog('verbose', "cert pubkey algo: %s\n", $cert->PubKeyAlg());
-      msvalog('verbose', "cert pubkey: %s\n", unpack('H*', $cert->pubkey()));
+      $self->log('info', "x509der certificate loaded.\n");
+      $self->log('verbose', "cert subject: %s\n", $cert->subject_cn());
+      $self->log('verbose', "cert issuer: %s\n", $cert->issuer_cn());
+      $self->log('verbose', "cert pubkey algo: %s\n", $cert->PubKeyAlg());
+      $self->log('verbose', "cert pubkey: %s\n", unpack('H*', $cert->pubkey()));
     } else {
-	msvalog('error', "unknown pkc type '%s'.\n", $pkctype);
+	$self->log('error', "unknown pkc type '%s'.\n", $pkctype);
     };
 
     return {
@@ -121,6 +109,24 @@
                     data => [map(ord, split(//,$pkcdata))],
                    },
            };
+  };
+
+
+  sub new {
+    my $class = shift;
+    my %args = @_;
+    my $self = {};
+
+    $self->{logger} = Crypt::Monkeysphere::MSVA::Logger->new($args{log_level});
+    $self->{socket} = $args{socket};
+    $self->{socket} = 'http://localhost:8901'
+      if (! defined $self->{socket} or $self->{socket} eq '');
+
+    # create the user agent
+    $self->{ua} = LWP::UserAgent->new;
+
+    bless ($self,$class);
+    return $self;
   }
 
   1;
