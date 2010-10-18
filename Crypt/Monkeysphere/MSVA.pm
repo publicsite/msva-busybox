@@ -19,16 +19,6 @@
   use strict;
   use warnings;
 
-  BEGIN {
-    use Exporter   ();
-    our (@EXPORT_OK,@ISA);
-    @ISA = qw(Exporter);
-    @EXPORT_OK = qw( &reviewcert );
-  }
-  our @EXPORT_OK;
-
-  use Crypt::Monkeysphere::MSVA::MarginalUI;
-  use Crypt::Monkeysphere::MSVA::Logger;
   use parent qw(HTTP::Server::Simple::CGI);
   require Crypt::X509;
   use Regexp::Common qw /net/;
@@ -40,6 +30,8 @@
   use File::Spec;
   use File::HomeDir;
   use Config::General;
+  use Crypt::Monkeysphere::MSVA::MarginalUI;
+  use Crypt::Monkeysphere::MSVA::Logger;
 
   use JSON;
   use POSIX qw(strftime);
