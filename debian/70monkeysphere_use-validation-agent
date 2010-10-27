@@ -4,9 +4,13 @@
 # startup argument with a monkeysphere-validation-agent nested
 # process, if available and none already exist.
 
-# Enable this system-wide by setting
-# MONKEYSPHERE_USE_VALIDATION_AGENT=true in
+# Disable this system-wide by setting
+# USE_VALIDATION_AGENT=false in
 # /etc/monkeysphere/monkeysphere.conf
+
+# Individual users can set the same environment variable in
+# ~/.monkeysphere/monkeysphere.conf to disable the agent for their own
+# X11 sessions.
 
 # Note that there is some weird interaction between this and
 # dbus-session at the moment: dbus-launch can start the msva just
