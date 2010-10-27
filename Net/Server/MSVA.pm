@@ -32,6 +32,11 @@
     $msva->post_bind_hook($self, @_);
   }
 
+  sub pre_loop_hook {
+    my $self = shift;
+    $msva->pre_loop_hook($self, @_);
+  }
+
   sub set_exit_status {
     my $self = shift;
     $exit_status = shift;

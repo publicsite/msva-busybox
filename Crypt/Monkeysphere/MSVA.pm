@@ -605,6 +605,34 @@
     return $status, $ret;
   }
 
+  sub pre_loop_hook {
+    my $self = shift;
+    my $server = shift;
+
+    $self->spawn_master_subproc($server);
+    if (exists $self->{child_pid} &&
+        $self->{child_pid} != 0) {
+      my $val;
+      while (defined($val = POSIX::waitpid(-1, POSIX::WNOHANG)) && $val > 0) {
+        msvalog('debug', "waitpid on %d: got %d\n", $self->{child_pid}, $val);
+        if ($val == $self->{child_pid}) {
+          $self->master_subprocess_died($server, $?);
+        }
+      }
+    }
+  }
+
+  sub master_subprocess_died {
+    my $self = shift;
+    my $server = shift;
+    my $subproc_return = shift;
+
+    my $exitstatus = POSIX::WEXITSTATUS($subproc_return);
+    msvalog('verbose', "Subprocess %d terminated; exiting %d.\n", $self->{child_pid}, $exitstatus);
+    $server->set_exit_status($exitstatus);
+    $server->server_close();
+  }
+
   sub child_dies {
     my $self = shift;
     my $pid = shift;
@@ -637,10 +665,7 @@
     } elsif (exists $self->{child_pid} &&
              ($self->{child_pid} == 0 ||
               $self->{child_pid} == $pid)) {
-      my $exitstatus = POSIX::WEXITSTATUS($?);
-      msvalog('verbose', "Subprocess %d terminated; exiting %d.\n", $pid, $exitstatus);
-      $server->set_exit_status($exitstatus);
-      $server->server_close();
+      $self->master_subprocess_died($server, $?);
     }
   }
 
@@ -677,6 +702,12 @@
       $server->server_close();
     }
     $self->port($port);
+    $self->{updatemonitor} = Crypt::Monkeysphere::MSVA::Monitor->new($logger);
+  }
+
+  sub spawn_master_subproc {
+    my $self = shift;
+    my $server = shift;
 
     if ((exists $ENV{MSVA_CHILD_PID}) && ($ENV{MSVA_CHILD_PID} ne '')) {
       # this is most likely a re-exec.
@@ -684,6 +715,8 @@
       $self->{child_pid} = $ENV{MSVA_CHILD_PID} + 0;
     } elsif ($#ARGV >= 0) {
       $self->{child_pid} = 0; # indicate that we are planning to fork.
+      # avoid ignoring SIGCHLD right before we fork.
+      $SIG{CHLD} = 'DEFAULT';
       my $fork = fork();
       if (! defined $fork) {
         msvalog('error', "could not fork\n");
@@ -718,8 +751,6 @@
       # ssh-agent.  maybe avoid backgrounding by setting
       # MSVA_NO_BACKGROUND.
     };
-
-    $self->{updatemonitor} = Crypt::Monkeysphere::MSVA::Monitor->new($logger);
   }
 
   sub extracerts {
