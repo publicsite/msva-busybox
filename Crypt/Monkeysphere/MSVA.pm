@@ -610,16 +610,6 @@
     my $server = shift;
 
     $self->spawn_master_subproc($server);
-    if (exists $self->{child_pid} &&
-        $self->{child_pid} != 0) {
-      my $val;
-      while (defined($val = POSIX::waitpid(-1, POSIX::WNOHANG)) && $val > 0) {
-        msvalog('debug', "waitpid on %d: got %d\n", $self->{child_pid}, $val);
-        if ($val == $self->{child_pid}) {
-          $self->master_subprocess_died($server, $?);
-        }
-      }
-    }
   }
 
   sub master_subprocess_died {
@@ -716,7 +706,12 @@
     } elsif ($#ARGV >= 0) {
       $self->{child_pid} = 0; # indicate that we are planning to fork.
       # avoid ignoring SIGCHLD right before we fork.
-      $SIG{CHLD} = 'DEFAULT';
+      $SIG{CHLD} = sub {
+        my $val;
+        while (defined($val = POSIX::waitpid(-1, POSIX::WNOHANG)) && $val > 0) {
+          $self->child_dies($val, $server);
+        }
+      };
       my $fork = fork();
       if (! defined $fork) {
         msvalog('error', "could not fork\n");
