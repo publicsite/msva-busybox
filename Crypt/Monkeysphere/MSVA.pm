@@ -32,6 +32,7 @@
   use Config::General;
   use Crypt::Monkeysphere::MSVA::MarginalUI;
   use Crypt::Monkeysphere::MSVA::Logger;
+  use Crypt::Monkeysphere::MSVA::Monitor;
 
   use JSON;
   use POSIX qw(strftime);
@@ -312,6 +313,9 @@
     my $self = shift;
     my $cgi  = shift;
 
+    # This is part of a spawned child process.  We don't want the
+    # child process to destroy the update monitor when it terminates.
+    $self->{updatemonitor}->forget();
     my $clientinfo = get_client_info(select);
     my $clientuid = $clientinfo->{uid};
 
@@ -608,9 +612,31 @@
 
     msvalog('debug', "Subprocess %d terminated.\n", $pid);
 
-    if (exists $self->{child_pid} &&
-        ($self->{child_pid} == 0 ||
-         $self->{child_pid} == $pid)) {
+    if (exists $self->{updatemonitor} &&
+        defined $self->{updatemonitor}->getchildpid() &&
+        $self->{updatemonitor}->getchildpid() == $pid) {
+      my $exitstatus = POSIX::WEXITSTATUS($?);
+      msvalog('verbose', "Update monitoring process (%d) terminated with code %d.\n", $pid, $exitstatus);
+      if (0 == $exitstatus) {
+        msvalog('info', "Reloading MSVA due to update request.\n");
+        # sending self a SIGHUP:
+        kill(1, $$);
+      } else {
+        msvalog('error', "Update monitoring process (%d) died unexpectedly with code %d.\nNo longer monitoring for updates; please send HUP manually.\n", $pid, $exitstatus);
+        # it died for some other weird reason; should we respawn it?
+
+        # FIXME: i'm worried that re-spawning would create a
+        # potentially abusive loop, if there are legit, repeatable
+        # reasons for the failure.
+
+#        $self->{updatemonitor}->spawn();
+
+        # instead, we'll just avoid trying to kill the next process with this PID:
+        $self->{updatemonitor}->forget();
+      }
+    } elsif (exists $self->{child_pid} &&
+             ($self->{child_pid} == 0 ||
+              $self->{child_pid} == $pid)) {
       my $exitstatus = POSIX::WEXITSTATUS($?);
       msvalog('verbose', "Subprocess %d terminated; exiting %d.\n", $pid, $exitstatus);
       $server->set_exit_status($exitstatus);
@@ -654,7 +680,7 @@
 
     if ((exists $ENV{MSVA_CHILD_PID}) && ($ENV{MSVA_CHILD_PID} ne '')) {
       # this is most likely a re-exec.
-      msvalog('info', "This appears to be a re-exec, monitoring child pid %d\n", $ENV{MSVA_CHILD_PID});
+      msvalog('info', "This appears to be a re-exec, continuing with child pid %d\n", $ENV{MSVA_CHILD_PID});
       $self->{child_pid} = $ENV{MSVA_CHILD_PID} + 0;
     } elsif ($#ARGV >= 0) {
       $self->{child_pid} = 0; # indicate that we are planning to fork.
@@ -692,6 +718,8 @@
       # ssh-agent.  maybe avoid backgrounding by setting
       # MSVA_NO_BACKGROUND.
     };
+
+    $self->{updatemonitor} = Crypt::Monkeysphere::MSVA::Monitor->new($logger);
   }
 
   sub extracerts {

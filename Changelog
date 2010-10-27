@@ -1,13 +1,16 @@
-msva-perl (0.6~pre) unstable; urgency=low
+msva-perl (0.6~pre) upstream;
 
-  * add new element to JSON syntax allowing request to override
+  * Add new element to JSON syntax allowing request to override
     keyserver_policy (closes MS #2542)
-  * do not kill off child handling processes on HUP -- let them finish
+  * Do not kill off child handling processes on HUP -- let them finish
     their queries.
+  * Refactor logging code
+  * If we have Gtk2, Linux::Inotify2, and AnyEvent, we should monitor for
+    updates and prompt the user when we notice one. (closes MS #2540)
 
- -- Daniel Kahn Gillmor <dkg@fifthhorseman.net>  Thu, 14 Oct 2010 16:30:54 -0400
-
-msva-perl (0.5) unstable; urgency=low
+ -- Daniel Kahn Gillmor <dkg@fifthhorseman.net>  Tue, 26 Oct 2010 22:49:40 -0400
+  
+msva-perl (0.5) upstream;
 
   * If ${MSVA_KEYSERVER} is unset or blank, default to using keyserver
     from ${GNUPGHOME}/gpg.conf if that file exists. (addresses MS #2080)
