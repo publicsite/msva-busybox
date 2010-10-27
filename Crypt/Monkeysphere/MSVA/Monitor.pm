@@ -161,9 +161,10 @@ Would you like to restart the validation agent?");
   sub DESTROY {
     my $self = shift;
     if (defined $self->{monitorpid}) {
-      # SIGTERM is 15:
-      kill(15, $self->{monitorpid});
+      kill('TERM', $self->{monitorpid});
+      my $oldexit = $?;
       waitpid($self->{monitorpid}, 0);
+      $? = $oldexit;
       undef($self->{monitorpid});
     }
   }
