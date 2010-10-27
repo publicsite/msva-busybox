@@ -7,8 +7,9 @@ msva-perl (0.6~pre) upstream;
   * Refactor logging code
   * If we have Gtk2, Linux::Inotify2, and AnyEvent, we should monitor for
     updates and prompt the user when we notice one. (closes MS #2540)
+  * Added tests/basic, as a simple test of a few functions (closes MS #2537)
 
- -- Daniel Kahn Gillmor <dkg@fifthhorseman.net>  Tue, 26 Oct 2010 22:49:40 -0400
+ -- Daniel Kahn Gillmor <dkg@fifthhorseman.net>  Wed, 27 Oct 2010 01:47:50 -0400
   
 msva-perl (0.5) upstream;
 

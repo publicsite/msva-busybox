@@ -1,0 +1,88 @@
+#!/bin/bash
+
+# simple set of tests to exercise the msva.
+
+# these tests currently depend on the user having the following tools
+# installed locally:
+
+# monkeysphere (for pem2openpgp)
+# openssl (for openssl req)
+# gpg (for obvious reasons)
+# bash (yes, this test script isn't posix-compliant)
+
+# note that this test requires the ability to bind on the loopback
+# interface, which might not be possible in some build environments.
+
+# Author: Daniel Kahn Gillmor
+# Copyright: 2010
+# License: This is licensed under the GPL v3 or later
+#          (see the top-level COPYING file in this distribution)
+
+set -e
+
+srcdir=$(dirname $0)/..
+
+REPS=5
+
+printf "testing %d reps of simple/quick true/false:\n" "$REPS"
+for n in $(seq 1 "$REPS") ; do
+    "${srcdir}"/test-msva msva-perl true
+    printf "+"
+    ! "${srcdir}"/test-msva msva-perl false
+    printf "-"
+done
+printf "\ndone\n"
+
+WORKDIR=$(mktemp -d)
+mkdir -m 0700 "${WORKDIR}/"{x509,sec,gnupg}
+export GNUPGHOME="${WORKDIR}/gnupg"
+
+if gpg --quick-random --version ; then
+    GPGQR=--quick-random
+elif gpg --debug-quick-random --version ; then
+    GPGQR=--debug-quick-random
+else
+    GPGQR=
+fi
+
+# make a CA
+printf "Key-Type: RSA\nKey-Length: 1024\nKey-Usage: sign\nName-Real: MSVA Test Certificate Authority (DO NOT USE!)\n" | gpg --batch --no-tty $GPGQR --gen-key
+
+# make 3 websites (X, Y, and Z) with self-signed certs:
+for name in x y z ; do 
+    openssl req -x509 -subj "/CN=${name}.example.net/" -nodes -sha256 -newkey rsa:1024 -keyout "${WORKDIR}/sec/${name}.key" -outform DER -out "${WORKDIR}/x509/${name}.der"
+done
+
+# translate X and Y's keys into OpenPGP cert
+for name in x y; do
+    PEM2OPENPGP_USAGE_FLAGS=authenticate pem2openpgp "https://${name}.example.net" < "${WORKDIR}/sec/${name}.key" | gpg --import
+done
+
+runtests() {
+    # X should not validate as X or Y or Z:
+    for name in x y z; do
+        ! "${srcdir}"/test-msva msva-perl "${srcdir}"/test-msva msva-query-agent https "${name}.example.net" x509der < "${WORKDIR}/x509/x.der"
+    done
+    
+    # certify X's OpenPGP cert with CA
+    gpg --batch --yes --sign-key https://x.example.net
+    
+    # X should now validate as X
+    "${srcdir}"/test-msva msva-perl "${srcdir}"/test-msva msva-query-agent https x.example.net x509der < "${WORKDIR}/x509/x.der"
+
+    # but X should not validate as Y or Z:
+    for name in x y z; do
+        ! "${srcdir}"/test-msva msva-perl "${srcdir}"/test-msva msva-query-agent https "${name}.example.net" x509der < "${WORKDIR}/x509/x.der"
+    done
+
+    # neither Y nor Z should validate as any of them:
+    for src in y z; do
+        for targ in x y z; do
+            ! "${srcdir}"/test-msva msva-perl "${srcdir}"/test-msva msva-query-agent https "${targ}.example.net" x509der < "${WORKDIR}/x509/${src}.der"
+        done
+    done
+}
+
+MSVA_KEYSERVER_POLICY=never runtests
+
+rm -rf "$WORKDIR"
