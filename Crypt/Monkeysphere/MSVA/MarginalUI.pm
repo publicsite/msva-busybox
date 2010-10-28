@@ -51,10 +51,6 @@
       $logger->log('debug', "checking on %s\n", $fprx);
       foreach my $gpgkey ($gnupg->get_public_keys_with_sigs($fprx)) {
         $logger->log('debug', "found key %.40s\n", $gpgkey->fingerprint->as_hex_string);
-        # we're going to prompt the user here if we have any
-        # relevant certifiers:
-        my @valid_certifiers;
-        my @marginal_certifiers;
 
         # FIXME: if there are multiple keys in the OpenPGP WoT
         # with the same key material and the same User ID
@@ -64,6 +60,8 @@
         # to do is.
         foreach my $user_id ($gpgkey->user_ids) {
           $logger->log('debug', "found EE User ID %s\n", $user_id->as_string);
+          my @valid_certifiers = ();
+          my @marginal_certifiers = ();
           if ($user_id->as_string eq $uid) {
             # get a list of the certifiers of the relevant User ID for the key
             foreach my $cert (@{$user_id->signatures}) {

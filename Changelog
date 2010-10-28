@@ -8,9 +8,11 @@ msva-perl (0.6~pre) upstream;
   * If we have Gtk2, Linux::Inotify2, and AnyEvent, we should monitor for
     updates and prompt the user when we notice one. (closes MS #2540)
   * Added tests/basic, as a simple test of a few functions (closes MS #2537)
+  * fixed double-prompting on sites that have more than one User ID
+    (closes MS #2567)
 
- -- Daniel Kahn Gillmor <dkg@fifthhorseman.net>  Wed, 27 Oct 2010 01:47:50 -0400
-  
+ -- Daniel Kahn Gillmor <dkg@fifthhorseman.net>  Thu, 28 Oct 2010 17:14:35 -0400
+
 msva-perl (0.5) upstream;
 
   * If ${MSVA_KEYSERVER} is unset or blank, default to using keyserver
