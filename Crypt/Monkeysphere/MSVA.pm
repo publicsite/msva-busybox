@@ -389,6 +389,24 @@
     return 0;
   }
 
+  sub pem2der {
+    my $pem = shift;
+    my @lines = split(/\n/, $pem);
+    my @goodlines = ();
+    my $ready = 0;
+    use MIME::Base64;
+    foreach my $line (@lines) {
+      if ($ready) {
+        push @goodlines, $line;
+      } elsif ($line eq '-----BEGIN CERTIFICATE-----') {
+        $ready = 1;
+      } elsif ($line eq '-----END CERTIFICATE-----') {
+        last;
+      }
+    }
+    return decode_base64(join('', @goodlines));
+  }
+
   sub getuid {
     my $data = shift;
     if ($data->{context} =~ /^(https|ssh)$/) {
@@ -500,9 +518,21 @@
     msvalog('verbose', "context: %s\n", $data->{context});
     msvalog('verbose', "peer: %s\n", $data->{peer});
 
-    my $rawdata = join('', map(chr, @{$data->{pkc}->{data}}));
+    my $rawdata;
+    if ($data->{pkc}->{type} eq 'x509der') {
+      $rawdata = join('', map(chr, @{$data->{pkc}->{data}}));
+    } elsif ($data->{pkc}->{type} eq 'x509pem') {
+      $rawdata = pem2der($data->{pkc}->{data});
+    } else {
+      $ret->{message} = sprintf("Don't know this public key carrier type: %s", $data->{pkc}->{type});
+      return $status,$ret;
+    }
     my $cert = Crypt::X509->new(cert => $rawdata);
 
+    if ($cert->error) {
+      $ret->{message} = sprintf("Error decoding X.509 certificate: %s", $cert->error);
+      return $status, $ret;
+    }
     msvalog('verbose', "cert subject: %s\n", $cert->subject_cn());
     msvalog('verbose', "cert issuer: %s\n", $cert->issuer_cn());
     msvalog('verbose', "cert pubkey algo: %s\n", $cert->PubKeyAlg());
@@ -523,7 +553,7 @@
                );
 
         if ($key->{modulus}->copy()->blog(2) < 1000) { # FIXME: this appears to be the full pubkey, including DER overhead
-          $ret->{message} = sprintf('public key size is less than 1000 bits (was: %d bits)', $cert->pubkey_size());
+          $ret->{message} = sprintf('Public key size is less than 1000 bits (was: %d bits)', $cert->pubkey_size());
         } else {
           $ret->{message} = sprintf('Failed to validate "%s" through the OpenPGP Web of Trust.', $uid);
           my $lastloop = 0;

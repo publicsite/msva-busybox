@@ -86,6 +86,8 @@
     $self->log('debug', "peer: %s\n", $peer);
     $self->log('debug', "pkctype: %s\n", $pkctype);
 
+    my $transformed_data;
+
     if ($pkctype eq 'x509der') {
       if ($self->{logger}->is_logging_at('verbose')) {
         if (Module::Load::Conditional::can_load('modules' => { 'Crypt::X509' => undef })) {
@@ -104,8 +106,12 @@
           $self->log('verbose', "X.509 cert going to agent but we cannot inspect it without Crypt::X509\n");
         }
       }
+      # remap raw pkc data into numeric array
+      $transformed_data = [map(ord, split(//,$pkcdata))];
+    } elsif ($pkctype eq 'x509pem') {
+      $transformed_data = $pkcdata;
     } else {
-	$self->log('error', "unknown pkc type '%s'.\n", $pkctype);
+      $self->log('error', "unknown pkc type '%s'.\n", $pkctype);
     };
 
     return {
@@ -113,8 +119,7 @@
             peer => $peer,
             pkc => {
                     type => $pkctype,
-                    # remap raw pkc data into numeric array
-                    data => [map(ord, split(//,$pkcdata))],
+                    data => $transformed_data,
                    },
            };
   };
