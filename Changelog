@@ -10,6 +10,8 @@ msva-perl (0.6~pre) upstream;
   * Added tests/basic, as a simple test of a few functions (closes MS #2537)
   * fixed double-prompting on sites that have more than one User ID
     (closes MS #2567)
+  * report server implementation name and version with every query (closes
+    MS # 2564)
 
  -- Daniel Kahn Gillmor <dkg@fifthhorseman.net>  Thu, 28 Oct 2010 17:14:35 -0400
 

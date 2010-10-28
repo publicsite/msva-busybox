@@ -42,6 +42,7 @@ $client->log('info', "status: %s\n", $status);
 if (defined $ret) {
   $client->log('info', "valid: %s\n", $ret->{valid});
   $client->log('fatal', "message: %s\n", $ret->{message});
+  $client->log('info', "server: %s\n", $ret->{server});
   exit 0
     if ($ret->{valid});
 }

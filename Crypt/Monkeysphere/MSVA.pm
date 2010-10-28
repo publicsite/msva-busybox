@@ -39,7 +39,7 @@
   # we need the version of GnuPG::Interface that knows about pubkey_data, etc:
   use GnuPG::Interface 0.42.02;
 
-  my $version = '0.1';
+  my $VERSION = '0.6';
 
   my $gnupg = GnuPG::Interface->new();
   $gnupg->options->quiet(1);
@@ -132,7 +132,7 @@
     my $cgi = shift;
     return '200 OK', { available => JSON::true,
                        protoversion => 1,
-                       server => "MSVA-Perl ".$version };
+                     };
   }
 
   # returns an empty list if bad key found.
@@ -355,6 +355,11 @@
         };
 
         my ($status, $object) = $handler->{handler}($data, $clientinfo);
+        if (ref($object) eq 'HASH' &&
+            ! defined $object->{server}) {
+          $object->{server} = sprintf("MSVA-Perl %s", $VERSION);
+        }
+
         my $ret = to_json($object);
         msvalog('info', "returning: %s\n", $ret);
         printf("HTTP/1.0 %s\r\nDate: %s\r\nContent-Type: application/json\r\n\r\n%s",
