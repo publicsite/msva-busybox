@@ -23,7 +23,7 @@ use Crypt::Monkeysphere::MSVA::Client;
 
 my $context = shift;
 my $peer = shift;
-my $pkctype = shift || 'x509der';
+my $pkctype = shift;
 
 # load raw pkc data from stdin
 my $pkcdata = do {
@@ -89,7 +89,7 @@ service, supply the host's full DNS name (e.g.  'foo.example.net')
 =item PKC_TYPE
 
 The format of public key carrier data provided on standard input
-(e.g. 'x509der')
+(e.g. 'x509der', 'x509pem', 'opensshpubkey', 'rfc4716')
 
 =back
 
