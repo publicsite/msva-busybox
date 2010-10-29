@@ -7,6 +7,7 @@
 
 # monkeysphere (for pem2openpgp)
 # openssl (for openssl req)
+# openssh-client (for ssh-keygen)
 # gpg (for obvious reasons)
 # bash (yes, this test script isn't posix-compliant)
 
@@ -34,7 +35,7 @@ done
 printf "\ndone\n"
 
 WORKDIR=$(mktemp -d)
-mkdir -m 0700 "${WORKDIR}/"{x509,sec,gnupg}
+mkdir -m 0700 "${WORKDIR}/"{pkc,sec,gnupg}
 export GNUPGHOME="${WORKDIR}/gnupg"
 
 if gpg --quick-random --version ; then
@@ -50,8 +51,10 @@ printf "Key-Type: RSA\nKey-Length: 1024\nKey-Usage: sign\nName-Real: MSVA Test C
 
 # make 3 websites (X, Y, and Z) with self-signed certs:
 for name in x y z ; do 
-    openssl req -x509 -subj "/CN=${name}.example.net/" -nodes -sha256 -newkey rsa:1024 -keyout "${WORKDIR}/sec/${name}.key" -outform DER -out "${WORKDIR}/x509/${name}.der"
-    openssl x509 -inform DER -outform PEM < "${WORKDIR}/x509/${name}.der" > "${WORKDIR}/x509/${name}.pem"
+    openssl req -x509 -subj "/CN=${name}.example.net/" -nodes -sha256 -newkey rsa:1024 -keyout "${WORKDIR}/sec/${name}.key" -outform DER -out "${WORKDIR}/pkc/${name}.x509der"
+    chmod 0400  "${WORKDIR}/sec/${name}.key"
+    openssl x509 -inform DER -outform PEM < "${WORKDIR}/pkc/${name}.x509der" > "${WORKDIR}/pkc/${name}.x509pem"
+    ssh-keygen -y -P '' -f "${WORKDIR}/sec/${name}.key" > "${WORKDIR}/pkc/${name}.opensshpubkey"
 done
 
 # translate X and Y's keys into OpenPGP cert
@@ -62,35 +65,38 @@ done
 runtests() {
     # X should not validate as X or Y or Z:
     for name in x y z; do
-        ! "${srcdir}"/test-msva msva-perl "${srcdir}"/test-msva msva-query-agent https "${name}.example.net" x509der < "${WORKDIR}/x509/x.der"
-        ! "${srcdir}"/test-msva msva-perl "${srcdir}"/test-msva msva-query-agent https "${name}.example.net" x509pem < "${WORKDIR}/x509/x.pem"
+        for ctype in x509pem x509der opensshpubkey; do
+            ! "${srcdir}"/test-msva msva-perl "${srcdir}"/test-msva msva-query-agent https "${name}.example.net" "${ctype}" < "${WORKDIR}/pkc/x.${ctype}"
+        done
     done
     
     # certify X's OpenPGP cert with CA
     gpg --batch --yes --sign-key https://x.example.net
 
     # it should fail if we pass it the wrong kind of data:
-    ! "${srcdir}"/test-msva msva-perl "${srcdir}"/test-msva msva-query-agent https x.example.net "x509der" < "${WORKDIR}/x509/x.pem"
-    ! "${srcdir}"/test-msva msva-perl "${srcdir}"/test-msva msva-query-agent https x.example.net "x509pem" < "${WORKDIR}/x509/x.der"
+    ! "${srcdir}"/test-msva msva-perl "${srcdir}"/test-msva msva-query-agent https x.example.net "x509der" < "${WORKDIR}/pkc/x.x509pem"
+    ! "${srcdir}"/test-msva msva-perl "${srcdir}"/test-msva msva-query-agent https x.example.net "x509pem" < "${WORKDIR}/pkc/x.x509der"
         
-    for ctype in pem der; do 
+    for ctype in x509pem x509der opensshpubkey; do 
     # X should now validate as X
-        "${srcdir}"/test-msva msva-perl "${srcdir}"/test-msva msva-query-agent https x.example.net "x509${ctype}" < "${WORKDIR}/x509/x.${ctype}"
+        "${srcdir}"/test-msva msva-perl "${srcdir}"/test-msva msva-query-agent https x.example.net "${ctype}" < "${WORKDIR}/pkc/x.${ctype}"
         
     # but X should not validate as Y or Z:
         for name in x y z; do
-            ! "${srcdir}"/test-msva msva-perl "${srcdir}"/test-msva msva-query-agent https "${name}.example.net" "x509${ctype}" < "${WORKDIR}/x509/x.${ctype}"
+            ! "${srcdir}"/test-msva msva-perl "${srcdir}"/test-msva msva-query-agent https "${name}.example.net" "${ctype}" < "${WORKDIR}/pkc/x.${ctype}"
         done
 
     # neither Y nor Z should validate as any of them:
         for src in y z; do
             for targ in x y z; do
-                ! "${srcdir}"/test-msva msva-perl "${srcdir}"/test-msva msva-query-agent https "${targ}.example.net" "x509${ctype}" < "${WORKDIR}/x509/${src}.${ctype}"
+                ! "${srcdir}"/test-msva msva-perl "${srcdir}"/test-msva msva-query-agent https "${targ}.example.net" "${ctype}" < "${WORKDIR}/pkc/${src}.${ctype}"
             done
         done
     done
 }
 
 MSVA_KEYSERVER_POLICY=never runtests
+
+echo "Completed all tests as expected!"
 
 rm -rf "$WORKDIR"
