@@ -396,14 +396,15 @@
     my $ready = 0;
     use MIME::Base64;
     foreach my $line (@lines) {
-      if ($ready) {
+      if ($line eq '-----END CERTIFICATE-----') {
+        last;
+      } elsif ($ready) {
         push @goodlines, $line;
       } elsif ($line eq '-----BEGIN CERTIFICATE-----') {
         $ready = 1;
-      } elsif ($line eq '-----END CERTIFICATE-----') {
-        last;
       }
     }
+    msvalog('debug', "%d lines of base64:\n%s\n", $#goodlines + 1, join("\n", @goodlines));
     return decode_base64(join('', @goodlines));
   }
 

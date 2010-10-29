@@ -51,6 +51,7 @@ printf "Key-Type: RSA\nKey-Length: 1024\nKey-Usage: sign\nName-Real: MSVA Test C
 # make 3 websites (X, Y, and Z) with self-signed certs:
 for name in x y z ; do 
     openssl req -x509 -subj "/CN=${name}.example.net/" -nodes -sha256 -newkey rsa:1024 -keyout "${WORKDIR}/sec/${name}.key" -outform DER -out "${WORKDIR}/x509/${name}.der"
+    openssl x509 -inform DER -outform PEM < "${WORKDIR}/x509/${name}.der" > "${WORKDIR}/x509/${name}.pem"
 done
 
 # translate X and Y's keys into OpenPGP cert
@@ -62,23 +63,30 @@ runtests() {
     # X should not validate as X or Y or Z:
     for name in x y z; do
         ! "${srcdir}"/test-msva msva-perl "${srcdir}"/test-msva msva-query-agent https "${name}.example.net" x509der < "${WORKDIR}/x509/x.der"
+        ! "${srcdir}"/test-msva msva-perl "${srcdir}"/test-msva msva-query-agent https "${name}.example.net" x509pem < "${WORKDIR}/x509/x.pem"
     done
     
     # certify X's OpenPGP cert with CA
     gpg --batch --yes --sign-key https://x.example.net
-    
-    # X should now validate as X
-    "${srcdir}"/test-msva msva-perl "${srcdir}"/test-msva msva-query-agent https x.example.net x509der < "${WORKDIR}/x509/x.der"
 
+    # it should fail if we pass it the wrong kind of data:
+    ! "${srcdir}"/test-msva msva-perl "${srcdir}"/test-msva msva-query-agent https x.example.net "x509der" < "${WORKDIR}/x509/x.pem"
+    ! "${srcdir}"/test-msva msva-perl "${srcdir}"/test-msva msva-query-agent https x.example.net "x509pem" < "${WORKDIR}/x509/x.der"
+        
+    for ctype in pem der; do 
+    # X should now validate as X
+        "${srcdir}"/test-msva msva-perl "${srcdir}"/test-msva msva-query-agent https x.example.net "x509${ctype}" < "${WORKDIR}/x509/x.${ctype}"
+        
     # but X should not validate as Y or Z:
-    for name in x y z; do
-        ! "${srcdir}"/test-msva msva-perl "${srcdir}"/test-msva msva-query-agent https "${name}.example.net" x509der < "${WORKDIR}/x509/x.der"
-    done
+        for name in x y z; do
+            ! "${srcdir}"/test-msva msva-perl "${srcdir}"/test-msva msva-query-agent https "${name}.example.net" "x509${ctype}" < "${WORKDIR}/x509/x.${ctype}"
+        done
 
     # neither Y nor Z should validate as any of them:
-    for src in y z; do
-        for targ in x y z; do
-            ! "${srcdir}"/test-msva msva-perl "${srcdir}"/test-msva msva-query-agent https "${targ}.example.net" x509der < "${WORKDIR}/x509/${src}.der"
+        for src in y z; do
+            for targ in x y z; do
+                ! "${srcdir}"/test-msva msva-perl "${srcdir}"/test-msva msva-query-agent https "${targ}.example.net" "x509${ctype}" < "${WORKDIR}/x509/${src}.${ctype}"
+            done
         done
     done
 }
