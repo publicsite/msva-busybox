@@ -520,9 +520,9 @@
     msvalog('verbose', "peer: %s\n", $data->{peer});
 
     my $rawdata;
-    if ($data->{pkc}->{type} eq 'x509der') {
+    if (lc($data->{pkc}->{type}) eq 'x509der') {
       $rawdata = join('', map(chr, @{$data->{pkc}->{data}}));
-    } elsif ($data->{pkc}->{type} eq 'x509pem') {
+    } elsif (lc($data->{pkc}->{type}) eq 'x509pem') {
       $rawdata = pem2der($data->{pkc}->{data});
     } else {
       $ret->{message} = sprintf("Don't know this public key carrier type: %s", $data->{pkc}->{type});
