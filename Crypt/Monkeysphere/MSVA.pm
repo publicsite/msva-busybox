@@ -145,6 +145,40 @@
     return $out;
   }
 
+  sub rfc47162key {
+    my $data = shift;
+
+    my @goodlines;
+    my $continuation = '';
+    my $state = 'outside';
+    foreach my $line (split(/\n/, $data)) {
+      last if ($state eq 'body' && $line eq '---- END SSH2 PUBLIC KEY ----');
+      if ($state eq 'outside' && $line eq '---- BEGIN SSH2 PUBLIC KEY ----') {
+        $state = 'header';
+        next;
+      }
+      if ($state eq 'header') {
+        $line = $continuation.$line;
+        $continuation = '';
+        if ($line =~ /^(.*)\\$/) {
+          $continuation = $1;
+          next;
+        }
+        if (! ($line =~ /:/)) {
+          $state = 'body';
+        }
+      }
+      push(@goodlines, $line) if ($state eq 'body');
+    }
+
+    msvalog('debug', "Found %d lines of RFC4716 body:\n%s\n", 
+            scalar(@goodlines),
+            join("\n", @goodlines));
+    my $out = parse_rfc4716body(join('', @goodlines));
+
+    return $out;
+  }
+
   sub parse_rfc4716body {
     my $data = shift;
     $data = decode_base64($data) or return undef;
@@ -573,6 +607,8 @@
       $key = der2key(pem2der($data->{pkc}->{data}));
     } elsif (lc($data->{pkc}->{type}) eq 'opensshpubkey') {
       $key = opensshpubkey2key($data->{pkc}->{data});
+    } elsif (lc($data->{pkc}->{type}) eq 'rfc4716') {
+      $key = rfc47162key($data->{pkc}->{data});
     } else {
       $ret->{message} = sprintf("Don't know this public key carrier type: %s", $data->{pkc}->{type});
       return $status,$ret;

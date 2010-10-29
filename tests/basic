@@ -25,6 +25,8 @@ srcdir=$(dirname $0)/..
 
 REPS=5
 
+CERTTYPES="x509pem x509der opensshpubkey rfc4716"
+
 printf "testing %d reps of simple/quick true/false:\n" "$REPS"
 for n in $(seq 1 "$REPS") ; do
     "${srcdir}"/test-msva msva-perl true
@@ -55,6 +57,7 @@ for name in x y z ; do
     chmod 0400  "${WORKDIR}/sec/${name}.key"
     openssl x509 -inform DER -outform PEM < "${WORKDIR}/pkc/${name}.x509der" > "${WORKDIR}/pkc/${name}.x509pem"
     ssh-keygen -y -P '' -f "${WORKDIR}/sec/${name}.key" > "${WORKDIR}/pkc/${name}.opensshpubkey"
+    ssh-keygen -e -P '' -f "${WORKDIR}/sec/${name}.key" > "${WORKDIR}/pkc/${name}.rfc4716"
 done
 
 # translate X and Y's keys into OpenPGP cert
@@ -65,7 +68,7 @@ done
 runtests() {
     # X should not validate as X or Y or Z:
     for name in x y z; do
-        for ctype in x509pem x509der opensshpubkey; do
+        for ctype in $CERTTYPES; do
             ! "${srcdir}"/test-msva msva-perl "${srcdir}"/test-msva msva-query-agent https "${name}.example.net" "${ctype}" < "${WORKDIR}/pkc/x.${ctype}"
         done
     done
@@ -73,11 +76,13 @@ runtests() {
     # certify X's OpenPGP cert with CA
     gpg --batch --yes --sign-key https://x.example.net
 
+    echo "Testing bad data:"
     # it should fail if we pass it the wrong kind of data:
     ! "${srcdir}"/test-msva msva-perl "${srcdir}"/test-msva msva-query-agent https x.example.net "x509der" < "${WORKDIR}/pkc/x.x509pem"
     ! "${srcdir}"/test-msva msva-perl "${srcdir}"/test-msva msva-query-agent https x.example.net "x509pem" < "${WORKDIR}/pkc/x.x509der"
+    echo "Done testing bad data."
         
-    for ctype in x509pem x509der opensshpubkey; do 
+    for ctype in $CERTTYPES; do 
     # X should now validate as X
         "${srcdir}"/test-msva msva-perl "${srcdir}"/test-msva msva-query-agent https x.example.net "${ctype}" < "${WORKDIR}/pkc/x.${ctype}"
         
@@ -95,8 +100,9 @@ runtests() {
     done
 }
 
+set -x
 MSVA_KEYSERVER_POLICY=never runtests
-
+set +x
 echo "Completed all tests as expected!"
 
 rm -rf "$WORKDIR"

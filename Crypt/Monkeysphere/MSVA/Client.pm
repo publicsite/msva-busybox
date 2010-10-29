@@ -109,7 +109,9 @@
       # remap raw pkc data into numeric array
       $transformed_data = [map(ord, split(//,$pkcdata))];
     } elsif ($pkctype eq 'x509pem' ||
-             $pkctype eq 'opensshpubkey') {
+             $pkctype eq 'opensshpubkey' ||
+             $pkctype eq 'rfc4716'
+            ) {
       $transformed_data = $pkcdata;
     } else {
       $self->log('error', "unknown pkc type '%s'.\n", $pkctype);
