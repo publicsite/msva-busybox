@@ -408,6 +408,36 @@
     return decode_base64(join('', @goodlines));
   }
 
+  sub der2key {
+    my $rawdata = shift;
+
+    my $cert = Crypt::X509->new(cert => $rawdata);
+
+    my $key = {error => 'I do not know what happened here'};
+
+    if ($cert->error) {
+      $key->{error} = sprintf("Error decoding X.509 certificate: %s", $cert->error);
+    } else {
+      msvalog('verbose', "cert subject: %s\n", $cert->subject_cn());
+      msvalog('verbose', "cert issuer: %s\n", $cert->issuer_cn());
+      msvalog('verbose', "cert pubkey algo: %s\n", $cert->PubKeyAlg());
+      msvalog('verbose', "cert pubkey: %s\n", unpack('H*', $cert->pubkey()));
+
+      if ($cert->PubKeyAlg() ne 'RSA') {
+        $key->{error} = sprintf('public key was algo "%s" (OID %s).  MSVA.pl only supports RSA',
+                                $cert->PubKeyAlg(), $cert->pubkey_algorithm);
+      } else {
+        msvalog('debug', "decoding ASN.1 pubkey\n");
+        $key = $rsa_decoder->decode($cert->pubkey());
+        if (! defined $key) {
+          msvalog('verbose', "failed to decode %s\n", unpack('H*', $cert->pubkey()));
+          $key = {error => 'failed to decode the public key'};
+        }
+      }
+    }
+    return $key;
+  }
+
   sub getuid {
     my $data = shift;
     if ($data->{context} =~ /^(https|ssh)$/) {
@@ -519,125 +549,108 @@
     msvalog('verbose', "context: %s\n", $data->{context});
     msvalog('verbose', "peer: %s\n", $data->{peer});
 
-    my $rawdata;
+    my $key;
     if (lc($data->{pkc}->{type}) eq 'x509der') {
-      $rawdata = join('', map(chr, @{$data->{pkc}->{data}}));
+      $key = der2key(join('', map(chr, @{$data->{pkc}->{data}})));
     } elsif (lc($data->{pkc}->{type}) eq 'x509pem') {
-      $rawdata = pem2der($data->{pkc}->{data});
+      $key = der2key(pem2der($data->{pkc}->{data}));
     } else {
       $ret->{message} = sprintf("Don't know this public key carrier type: %s", $data->{pkc}->{type});
       return $status,$ret;
     }
-    my $cert = Crypt::X509->new(cert => $rawdata);
 
-    if ($cert->error) {
-      $ret->{message} = sprintf("Error decoding X.509 certificate: %s", $cert->error);
-      return $status, $ret;
+    if (exists $key->{error}) {
+      $ret->{message} = $key->{error};
+      return $status,$ret;
     }
-    msvalog('verbose', "cert subject: %s\n", $cert->subject_cn());
-    msvalog('verbose', "cert issuer: %s\n", $cert->issuer_cn());
-    msvalog('verbose', "cert pubkey algo: %s\n", $cert->PubKeyAlg());
-    msvalog('verbose', "cert pubkey: %s\n", unpack('H*', $cert->pubkey()));
 
-    if ($cert->PubKeyAlg() ne 'RSA') {
-      $ret->{message} = sprintf('public key was algo "%s" (OID %s).  MSVA.pl only supports RSA',
-                                $cert->PubKeyAlg(), $cert->pubkey_algorithm);
+    # make sure that the returned integers are Math::BigInts:
+    $key->{exponent} = Math::BigInt->new($key->{exponent}) unless (ref($key->{exponent}));
+    $key->{modulus} = Math::BigInt->new($key->{modulus}) unless (ref($key->{modulus}));
+    msvalog('debug', "pubkey info:\nmodulus: %s\nexponent: %s\n",
+            $key->{modulus}->as_hex(),
+            $key->{exponent}->as_hex(),
+           );
+
+    if ($key->{modulus}->copy()->blog(2) < 1000) {
+      $ret->{message} = sprintf('Public key size is less than 1000 bits (was: %d bits)', $key->{modulus}->copy()->blog(2));
     } else {
-      my $key = $rsa_decoder->decode($cert->pubkey());
-      if ($key) {
-        # make sure that the returned integers are Math::BigInts:
-        $key->{exponent} = Math::BigInt->new($key->{exponent}) unless (ref($key->{exponent}));
-        $key->{modulus} = Math::BigInt->new($key->{modulus}) unless (ref($key->{modulus}));
-        msvalog('debug', "cert info:\nmodulus: %s\nexponent: %s\n",
-                $key->{modulus}->as_hex(),
-                $key->{exponent}->as_hex(),
-               );
+      $ret->{message} = sprintf('Failed to validate "%s" through the OpenPGP Web of Trust.', $uid);
+      my $lastloop = 0;
+      my $kspolicy;
+      if (defined $data->{keyserverpolicy} &&
+          $data->{keyserverpolicy} =~ /^(always|never|unlessvalid)$/) {
+        $kspolicy = $1;
+        msvalog("verbose", "using requested keyserver policy: %s\n", $1);
+      } else {
+        $kspolicy = get_keyserver_policy();
+      }
+      msvalog('debug', "keyserver policy: %s\n", $kspolicy);
+      # needed because $gnupg spawns child processes
+      $ENV{PATH} = '/usr/local/bin:/usr/bin:/bin';
+      if ($kspolicy eq 'always') {
+        fetch_uid_from_keyserver($uid);
+        $lastloop = 1;
+      } elsif ($kspolicy eq 'never') {
+        $lastloop = 1;
+      }
+      my $foundvalid = 0;
 
-        if ($key->{modulus}->copy()->blog(2) < 1000) { # FIXME: this appears to be the full pubkey, including DER overhead
-          $ret->{message} = sprintf('Public key size is less than 1000 bits (was: %d bits)', $cert->pubkey_size());
-        } else {
-          $ret->{message} = sprintf('Failed to validate "%s" through the OpenPGP Web of Trust.', $uid);
-          my $lastloop = 0;
-          my $kspolicy;
-          if (defined $data->{keyserverpolicy} &&
-              $data->{keyserverpolicy} =~ /^(always|never|unlessvalid)$/) {
-            $kspolicy = $1;
-            msvalog("verbose", "using requested keyserver policy: %s\n", $1);
-          } else {
-            $kspolicy = get_keyserver_policy();
-          }
-          msvalog('debug', "keyserver policy: %s\n", $kspolicy);
-          # needed because $gnupg spawns child processes
-          $ENV{PATH} = '/usr/local/bin:/usr/bin:/bin';
-          if ($kspolicy eq 'always') {
-            fetch_uid_from_keyserver($uid);
-            $lastloop = 1;
-          } elsif ($kspolicy eq 'never') {
-            $lastloop = 1;
-          }
-          my $foundvalid = 0;
+      # fingerprints of keys that are not fully-valid for this User ID, but match
+      # the key from the queried certificate:
+      my @subvalid_key_fprs;
 
-          # fingerprints of keys that are not fully-valid for this User ID, but match
-          # the key from the queried certificate:
-          my @subvalid_key_fprs;
-
-          while (1) {
-            foreach my $gpgkey ($gnupg->get_public_keys('='.$uid)) {
-              my $validity = '-';
-              foreach my $tryuid ($gpgkey->user_ids) {
-                if ($tryuid->as_string eq $uid) {
-                  $validity = $tryuid->validity;
-                }
-              }
-              # treat primary keys just like subkeys:
-              foreach my $subkey ($gpgkey, @{$gpgkey->subkeys}) {
-                my $primarymatch = keycomp($key, $subkey);
-                if ($primarymatch) {
-                  if ($subkey->usage_flags =~ /a/) {
-                    msvalog('verbose', "key matches, and 0x%s is authentication-capable\n", $subkey->hex_id);
-                    if ($validity =~ /^[fu]$/) {
-                      $foundvalid = 1;
-                      msvalog('verbose', "...and it matches!\n");
-                      $ret->{valid} = JSON::true;
-                      $ret->{message} = sprintf('Successfully validated "%s" through the OpenPGP Web of Trust.', $uid);
-                    } else {
-                      push(@subvalid_key_fprs, { fpr => $subkey->fingerprint, val => $validity }) if $lastloop;
-                    }
-                  } else {
-                    msvalog('verbose', "key matches, but 0x%s is not authentication-capable\n", $subkey->hex_id);
-                  }
-                }
-              }
-            }
-            if ($lastloop) {
-              last;
-            } else {
-              fetch_uid_from_keyserver($uid) if (!$foundvalid);
-              $lastloop = 1;
+      while (1) {
+        foreach my $gpgkey ($gnupg->get_public_keys('='.$uid)) {
+          my $validity = '-';
+          foreach my $tryuid ($gpgkey->user_ids) {
+            if ($tryuid->as_string eq $uid) {
+              $validity = $tryuid->validity;
             }
           }
-
-          # only show the marginal UI if the UID of the corresponding
-          # key is not fully valid.
-          if (!$foundvalid) {
-            my $resp = Crypt::Monkeysphere::MSVA::MarginalUI->ask_the_user($gnupg,
-                                                                           $uid,
-                                                                           \@subvalid_key_fprs,
-                                                                           getpidswithsocketinode($clientinfo->{inode}),
-                                                                           $logger);
-            msvalog('info', "response: %s\n", $resp);
-            if ($resp) {
-              $ret->{valid} = JSON::true;
-              $ret->{message} = sprintf('Manually validated "%s" through the OpenPGP Web of Trust.', $uid);
+          # treat primary keys just like subkeys:
+          foreach my $subkey ($gpgkey, @{$gpgkey->subkeys}) {
+            my $primarymatch = keycomp($key, $subkey);
+            if ($primarymatch) {
+              if ($subkey->usage_flags =~ /a/) {
+                msvalog('verbose', "key matches, and 0x%s is authentication-capable\n", $subkey->hex_id);
+                if ($validity =~ /^[fu]$/) {
+                  $foundvalid = 1;
+                  msvalog('verbose', "...and it matches!\n");
+                  $ret->{valid} = JSON::true;
+                  $ret->{message} = sprintf('Successfully validated "%s" through the OpenPGP Web of Trust.', $uid);
+                } else {
+                  push(@subvalid_key_fprs, { fpr => $subkey->fingerprint, val => $validity }) if $lastloop;
+                }
+              } else {
+                msvalog('verbose', "key matches, but 0x%s is not authentication-capable\n", $subkey->hex_id);
+              }
             }
           }
         }
-      } else {
-        msvalog('error', "failed to decode %s\n", unpack('H*', $cert->pubkey()));
-        $ret->{message} = sprintf('failed to decode the public key', $uid);
+        if ($lastloop) {
+          last;
+        } else {
+          fetch_uid_from_keyserver($uid) if (!$foundvalid);
+          $lastloop = 1;
+        }
+      }
+
+      # only show the marginal UI if the UID of the corresponding
+      # key is not fully valid.
+      if (!$foundvalid) {
+        my $resp = Crypt::Monkeysphere::MSVA::MarginalUI->ask_the_user($gnupg,
+                                                                       $uid,
+                                                                       \@subvalid_key_fprs,
+                                                                       getpidswithsocketinode($clientinfo->{inode}),
+                                                                       $logger);
+        msvalog('info', "response: %s\n", $resp);
+        if ($resp) {
+          $ret->{valid} = JSON::true;
+          $ret->{message} = sprintf('Manually validated "%s" through the OpenPGP Web of Trust.', $uid);
+        }
       }
     }
-
     return $status, $ret;
   }
 
