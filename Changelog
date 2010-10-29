@@ -12,9 +12,10 @@ msva-perl (0.6~pre) upstream;
     (closes MS #2567)
   * report server implementation name and version with every query (closes
     MS # 2564)
-  * support x509pem PKC format in addition to x509der (addresses MS #2566)
+  * support x509pem and opensshpubkey PKC formats in addition to x509der
+    (addresses MS #2566)
 
- -- Daniel Kahn Gillmor <dkg@fifthhorseman.net>  Fri, 29 Oct 2010 00:53:37 -0400
+ -- Daniel Kahn Gillmor <dkg@fifthhorseman.net>  Fri, 29 Oct 2010 02:55:37 -0400
 
 msva-perl (0.5) upstream;
 

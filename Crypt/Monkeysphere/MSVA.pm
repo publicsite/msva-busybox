@@ -135,23 +135,41 @@
                      };
   }
 
-  # returns an empty list if bad key found.
-  sub parse_openssh_pubkey {
+  sub opensshpubkey2key {
     my $data = shift;
+    # FIXME: do we care that the label matches the type of key?
     my ($label, $prop) = split(/ +/, $data);
-    $prop = decode_base64($prop) or return ();
 
-    msvalog('debug', "key properties: %s\n", unpack('H*', $prop));
-    my @out;
-    while (length($prop) > 4) {
-      my $size = unpack('N', substr($prop, 0, 4));
+    my $out = parse_rfc4716body($prop);
+
+    return $out;
+  }
+
+  sub parse_rfc4716body {
+    my $data = shift;
+    $data = decode_base64($data) or return undef;
+
+    msvalog('debug', "key properties: %s\n", unpack('H*', $data));
+    my $out = [ ];
+    while (length($data) > 4) {
+      my $size = unpack('N', substr($data, 0, 4));
       msvalog('debug', "size: 0x%08x\n", $size);
-      return () if (length($prop) < $size + 4);
-      push(@out, substr($prop, 4, $size));
-      $prop = substr($prop, 4 + $size);
+      return undef if (length($data) < $size + 4);
+      push(@{$out}, substr($data, 4, $size));
+      $data = substr($data, 4 + $size);
     }
-    return () if ($label ne $out[0]);
-    return @out;
+
+    if ($out->[0] ne "ssh-rsa") {
+      return {error => 'Not an RSA key'};
+    }
+
+    if (scalar(@{$out}) != 3) {
+      return {error => 'Does not contain the right number of bigints for RSA'};
+    }
+
+    return { exponent => Math::BigInt->from_hex('0x'.unpack('H*', $out->[1])),
+             modulus => Math::BigInt->from_hex('0x'.unpack('H*', $out->[2])),
+           } ;
   }
 
 
@@ -394,7 +412,6 @@
     my @lines = split(/\n/, $pem);
     my @goodlines = ();
     my $ready = 0;
-    use MIME::Base64;
     foreach my $line (@lines) {
       if ($line eq '-----END CERTIFICATE-----') {
         last;
@@ -554,6 +571,8 @@
       $key = der2key(join('', map(chr, @{$data->{pkc}->{data}})));
     } elsif (lc($data->{pkc}->{type}) eq 'x509pem') {
       $key = der2key(pem2der($data->{pkc}->{data}));
+    } elsif (lc($data->{pkc}->{type}) eq 'opensshpubkey') {
+      $key = opensshpubkey2key($data->{pkc}->{data});
     } else {
       $ret->{message} = sprintf("Don't know this public key carrier type: %s", $data->{pkc}->{type});
       return $status,$ret;
