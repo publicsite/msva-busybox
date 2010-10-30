@@ -1,4 +1,23 @@
-msva-perl (0.5) unstable; urgency=low
+msva-perl (0.6~pre) upstream;
+
+  * Add new element to JSON syntax allowing request to override
+    keyserver_policy (closes MS #2542)
+  * Do not kill off child handling processes on HUP -- let them finish
+    their queries.
+  * Refactor logging code
+  * If we have Gtk2, Linux::Inotify2, and AnyEvent, we should monitor for
+    updates and prompt the user when we notice one. (closes MS #2540)
+  * Added tests/basic, as a simple test of a few functions (closes MS #2537)
+  * fixed double-prompting on sites that have more than one User ID
+    (closes MS #2567)
+  * report server implementation name and version with every query (closes
+    MS # 2564)
+  * support x509pem, opensshpubkey, and rfc4716 PKC formats in addition to
+    x509der (addresses MS #2566)
+
+ -- Daniel Kahn Gillmor <dkg@fifthhorseman.net>  Fri, 29 Oct 2010 03:48:50 -0400
+
+msva-perl (0.5) upstream;
 
   * If ${MSVA_KEYSERVER} is unset or blank, default to using keyserver
     from ${GNUPGHOME}/gpg.conf if that file exists. (addresses MS #2080)

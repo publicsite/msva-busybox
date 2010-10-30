@@ -19,15 +19,6 @@
   use strict;
   use warnings;
 
-  BEGIN {
-    use Exporter   ();
-    our (@EXPORT_OK,@ISA);
-    @ISA = qw(Exporter);
-    @EXPORT_OK = qw( &msvalog );
-  }
-  our @EXPORT_OK;
-
-  use Crypt::Monkeysphere::MSVA::MarginalUI;
   use parent qw(HTTP::Server::Simple::CGI);
   require Crypt::X509;
   use Regexp::Common qw /net/;
@@ -39,13 +30,16 @@
   use File::Spec;
   use File::HomeDir;
   use Config::General;
+  use Crypt::Monkeysphere::MSVA::MarginalUI;
+  use Crypt::Monkeysphere::MSVA::Logger;
+  use Crypt::Monkeysphere::MSVA::Monitor;
 
   use JSON;
   use POSIX qw(strftime);
   # we need the version of GnuPG::Interface that knows about pubkey_data, etc:
   use GnuPG::Interface 0.42.02;
 
-  my $version = '0.1';
+  my $VERSION = '0.6';
 
   my $gnupg = GnuPG::Interface->new();
   $gnupg->options->quiet(1);
@@ -66,20 +60,10 @@
   my $default_keyserver = 'hkp://pool.sks-keyservers.net';
   my $default_keyserver_policy = 'unlessvalid';
 
-# Net::Server log_level goes from 0 to 4
-# this is scaled to match.
-  my %loglevels = (
-                   'silent' => 0,
-                   'quiet' => 0.25,
-                   'fatal' => 0.5,
-                   'error' => 1,
-                   'info' => 2,
-                   'verbose' => 3,
-                   'debug' => 4,
-                   'debug1' => 4,
-                   'debug2' => 5,
-                   'debug3' => 6,
-                  );
+  my $logger = Crypt::Monkeysphere::MSVA::Logger->new($ENV{MSVA_LOG_LEVEL});
+  sub logger {
+    return $logger;
+  }
 
   my $rsa_decoder = Convert::ASN1->new;
   $rsa_decoder->prepare(q<
@@ -90,25 +74,12 @@
    }
           >);
 
-  sub msvalog {
-    my $msglevel = shift;
-
-    my $level = $loglevels{lc($ENV{MSVA_LOG_LEVEL})};
-    $level = $loglevels{error} if (! defined $level);
-
-    if ($loglevels{lc($msglevel)} <= $level) {
-      printf STDERR @_;
-    }
-  };
-
-  sub get_log_level {
-    my $level = $loglevels{lc($ENV{MSVA_LOG_LEVEL})};
-    $level = $loglevels{error} if (! defined $level);
-    return $level;
-  }
-
   sub net_server {
     return 'Net::Server::MSVA';
+  };
+
+  sub msvalog {
+    return $logger->log(@_);
   };
 
   sub new {
@@ -161,26 +132,78 @@
     my $cgi = shift;
     return '200 OK', { available => JSON::true,
                        protoversion => 1,
-                       server => "MSVA-Perl ".$version };
+                     };
   }
 
-  # returns an empty list if bad key found.
-  sub parse_openssh_pubkey {
+  sub opensshpubkey2key {
     my $data = shift;
+    # FIXME: do we care that the label matches the type of key?
     my ($label, $prop) = split(/ +/, $data);
-    $prop = decode_base64($prop) or return ();
 
-    msvalog('debug', "key properties: %s\n", unpack('H*', $prop));
-    my @out;
-    while (length($prop) > 4) {
-      my $size = unpack('N', substr($prop, 0, 4));
-      msvalog('debug', "size: 0x%08x\n", $size);
-      return () if (length($prop) < $size + 4);
-      push(@out, substr($prop, 4, $size));
-      $prop = substr($prop, 4 + $size);
+    my $out = parse_rfc4716body($prop);
+
+    return $out;
+  }
+
+  sub rfc47162key {
+    my $data = shift;
+
+    my @goodlines;
+    my $continuation = '';
+    my $state = 'outside';
+    foreach my $line (split(/\n/, $data)) {
+      last if ($state eq 'body' && $line eq '---- END SSH2 PUBLIC KEY ----');
+      if ($state eq 'outside' && $line eq '---- BEGIN SSH2 PUBLIC KEY ----') {
+        $state = 'header';
+        next;
+      }
+      if ($state eq 'header') {
+        $line = $continuation.$line;
+        $continuation = '';
+        if ($line =~ /^(.*)\\$/) {
+          $continuation = $1;
+          next;
+        }
+        if (! ($line =~ /:/)) {
+          $state = 'body';
+        }
+      }
+      push(@goodlines, $line) if ($state eq 'body');
     }
-    return () if ($label ne $out[0]);
-    return @out;
+
+    msvalog('debug', "Found %d lines of RFC4716 body:\n%s\n", 
+            scalar(@goodlines),
+            join("\n", @goodlines));
+    my $out = parse_rfc4716body(join('', @goodlines));
+
+    return $out;
+  }
+
+  sub parse_rfc4716body {
+    my $data = shift;
+    $data = decode_base64($data) or return undef;
+
+    msvalog('debug', "key properties: %s\n", unpack('H*', $data));
+    my $out = [ ];
+    while (length($data) > 4) {
+      my $size = unpack('N', substr($data, 0, 4));
+      msvalog('debug', "size: 0x%08x\n", $size);
+      return undef if (length($data) < $size + 4);
+      push(@{$out}, substr($data, 4, $size));
+      $data = substr($data, 4 + $size);
+    }
+
+    if ($out->[0] ne "ssh-rsa") {
+      return {error => 'Not an RSA key'};
+    }
+
+    if (scalar(@{$out}) != 3) {
+      return {error => 'Does not contain the right number of bigints for RSA'};
+    }
+
+    return { exponent => Math::BigInt->from_hex('0x'.unpack('H*', $out->[1])),
+             modulus => Math::BigInt->from_hex('0x'.unpack('H*', $out->[2])),
+           } ;
   }
 
 
@@ -342,6 +365,9 @@
     my $self = shift;
     my $cgi  = shift;
 
+    # This is part of a spawned child process.  We don't want the
+    # child process to destroy the update monitor when it terminates.
+    $self->{updatemonitor}->forget();
     my $clientinfo = get_client_info(select);
     my $clientuid = $clientinfo->{uid};
 
@@ -381,6 +407,11 @@
         };
 
         my ($status, $object) = $handler->{handler}($data, $clientinfo);
+        if (ref($object) eq 'HASH' &&
+            ! defined $object->{server}) {
+          $object->{server} = sprintf("MSVA-Perl %s", $VERSION);
+        }
+
         my $ret = to_json($object);
         msvalog('info', "returning: %s\n", $ret);
         printf("HTTP/1.0 %s\r\nDate: %s\r\nContent-Type: application/json\r\n\r\n%s",
@@ -410,9 +441,57 @@
     return 0;
   }
 
+  sub pem2der {
+    my $pem = shift;
+    my @lines = split(/\n/, $pem);
+    my @goodlines = ();
+    my $ready = 0;
+    foreach my $line (@lines) {
+      if ($line eq '-----END CERTIFICATE-----') {
+        last;
+      } elsif ($ready) {
+        push @goodlines, $line;
+      } elsif ($line eq '-----BEGIN CERTIFICATE-----') {
+        $ready = 1;
+      }
+    }
+    msvalog('debug', "%d lines of base64:\n%s\n", $#goodlines + 1, join("\n", @goodlines));
+    return decode_base64(join('', @goodlines));
+  }
+
+  sub der2key {
+    my $rawdata = shift;
+
+    my $cert = Crypt::X509->new(cert => $rawdata);
+
+    my $key = {error => 'I do not know what happened here'};
+
+    if ($cert->error) {
+      $key->{error} = sprintf("Error decoding X.509 certificate: %s", $cert->error);
+    } else {
+      msvalog('verbose', "cert subject: %s\n", $cert->subject_cn());
+      msvalog('verbose', "cert issuer: %s\n", $cert->issuer_cn());
+      msvalog('verbose', "cert pubkey algo: %s\n", $cert->PubKeyAlg());
+      msvalog('verbose', "cert pubkey: %s\n", unpack('H*', $cert->pubkey()));
+
+      if ($cert->PubKeyAlg() ne 'RSA') {
+        $key->{error} = sprintf('public key was algo "%s" (OID %s).  MSVA.pl only supports RSA',
+                                $cert->PubKeyAlg(), $cert->pubkey_algorithm);
+      } else {
+        msvalog('debug', "decoding ASN.1 pubkey\n");
+        $key = $rsa_decoder->decode($cert->pubkey());
+        if (! defined $key) {
+          msvalog('verbose', "failed to decode %s\n", unpack('H*', $cert->pubkey()));
+          $key = {error => 'failed to decode the public key'};
+        }
+      }
+    }
+    return $key;
+  }
+
   sub getuid {
     my $data = shift;
-    if ($data->{context} =~ /^(https|ssh)$/) {
+    if ($data->{context} =~ /^(https|ssh|ike)$/) {
       $data->{context} = $1;
       if ($data->{peer} =~ /^($RE{net}{domain})$/) {
         $data->{peer} = $1;
@@ -505,6 +584,8 @@
     my $clientinfo  = shift;
     return if !ref $data;
 
+    msvalog('verbose', "reviewing data...\n");
+
     my $status = '200 OK';
     my $ret =  { valid => JSON::false,
                  message => 'Unknown failure',
@@ -516,105 +597,134 @@
         $ret->{message} = sprintf('invalid peer/context');
         return $status, $ret;
     }
+    msvalog('verbose', "context: %s\n", $data->{context});
+    msvalog('verbose', "peer: %s\n", $data->{peer});
 
-    my $rawdata = join('', map(chr, @{$data->{pkc}->{data}}));
-    my $cert = Crypt::X509->new(cert => $rawdata);
-    msvalog('verbose', "cert subject: %s\n", $cert->subject_cn());
-    msvalog('verbose', "cert issuer: %s\n", $cert->issuer_cn());
-    msvalog('verbose', "cert pubkey algo: %s\n", $cert->PubKeyAlg());
-    msvalog('verbose', "cert pubkey: %s\n", unpack('H*', $cert->pubkey()));
-
-    if ($cert->PubKeyAlg() ne 'RSA') {
-      $ret->{message} = sprintf('public key was algo "%s" (OID %s).  MSVA.pl only supports RSA',
-                                $cert->PubKeyAlg(), $cert->pubkey_algorithm);
+    my $key;
+    if (lc($data->{pkc}->{type}) eq 'x509der') {
+      $key = der2key(join('', map(chr, @{$data->{pkc}->{data}})));
+    } elsif (lc($data->{pkc}->{type}) eq 'x509pem') {
+      $key = der2key(pem2der($data->{pkc}->{data}));
+    } elsif (lc($data->{pkc}->{type}) eq 'opensshpubkey') {
+      $key = opensshpubkey2key($data->{pkc}->{data});
+    } elsif (lc($data->{pkc}->{type}) eq 'rfc4716') {
+      $key = rfc47162key($data->{pkc}->{data});
     } else {
-      my $key = $rsa_decoder->decode($cert->pubkey());
-      if ($key) {
-        # make sure that the returned integers are Math::BigInts:
-        $key->{exponent} = Math::BigInt->new($key->{exponent}) unless (ref($key->{exponent}));
-        $key->{modulus} = Math::BigInt->new($key->{modulus}) unless (ref($key->{modulus}));
-        msvalog('debug', "cert info:\nmodulus: %s\nexponent: %s\n",
-                $key->{modulus}->as_hex(),
-                $key->{exponent}->as_hex(),
-               );
+      $ret->{message} = sprintf("Don't know this public key carrier type: %s", $data->{pkc}->{type});
+      return $status,$ret;
+    }
 
-        if ($key->{modulus}->copy()->blog(2) < 1000) { # FIXME: this appears to be the full pubkey, including DER overhead
-          $ret->{message} = sprintf('public key size is less than 1000 bits (was: %d bits)', $cert->pubkey_size());
-        } else {
-          $ret->{message} = sprintf('Failed to validate "%s" through the OpenPGP Web of Trust.', $uid);
-          my $lastloop = 0;
-          msvalog('debug', "keyserver policy: %s\n", get_keyserver_policy);
-          # needed because $gnupg spawns child processes
-          $ENV{PATH} = '/usr/local/bin:/usr/bin:/bin';
-          if (get_keyserver_policy() eq 'always') {
-            fetch_uid_from_keyserver($uid);
-            $lastloop = 1;
-          } elsif (get_keyserver_policy() eq 'never') {
-            $lastloop = 1;
-          }
-          my $foundvalid = 0;
+    if (exists $key->{error}) {
+      $ret->{message} = $key->{error};
+      return $status,$ret;
+    }
 
-          # fingerprints of keys that are not fully-valid for this User ID, but match
-          # the key from the queried certificate:
-          my @subvalid_key_fprs;
+    # make sure that the returned integers are Math::BigInts:
+    $key->{exponent} = Math::BigInt->new($key->{exponent}) unless (ref($key->{exponent}));
+    $key->{modulus} = Math::BigInt->new($key->{modulus}) unless (ref($key->{modulus}));
+    msvalog('debug', "pubkey info:\nmodulus: %s\nexponent: %s\n",
+            $key->{modulus}->as_hex(),
+            $key->{exponent}->as_hex(),
+           );
 
-          while (1) {
-            foreach my $gpgkey ($gnupg->get_public_keys('='.$uid)) {
-              my $validity = '-';
-              foreach my $tryuid ($gpgkey->user_ids) {
-                if ($tryuid->as_string eq $uid) {
-                  $validity = $tryuid->validity;
-                }
-              }
-              # treat primary keys just like subkeys:
-              foreach my $subkey ($gpgkey, @{$gpgkey->subkeys}) {
-                my $primarymatch = keycomp($key, $subkey);
-                if ($primarymatch) {
-                  if ($subkey->usage_flags =~ /a/) {
-                    msvalog('verbose', "key matches, and 0x%s is authentication-capable\n", $subkey->hex_id);
-                    if ($validity =~ /^[fu]$/) {
-                      $foundvalid = 1;
-                      msvalog('verbose', "...and it matches!\n");
-                      $ret->{valid} = JSON::true;
-                      $ret->{message} = sprintf('Successfully validated "%s" through the OpenPGP Web of Trust.', $uid);
-                    } else {
-                      push(@subvalid_key_fprs, { fpr => $subkey->fingerprint, val => $validity }) if $lastloop;
-                    }
-                  } else {
-                    msvalog('verbose', "key matches, but 0x%s is not authentication-capable\n", $subkey->hex_id);
-                  }
-                }
-              }
-            }
-            if ($lastloop) {
-              last;
-            } else {
-              fetch_uid_from_keyserver($uid) if (!$foundvalid);
-              $lastloop = 1;
+    if ($key->{modulus}->copy()->blog(2) < 1000) {
+      $ret->{message} = sprintf('Public key size is less than 1000 bits (was: %d bits)', $key->{modulus}->copy()->blog(2));
+    } else {
+      $ret->{message} = sprintf('Failed to validate "%s" through the OpenPGP Web of Trust.', $uid);
+      my $lastloop = 0;
+      my $kspolicy;
+      if (defined $data->{keyserverpolicy} &&
+          $data->{keyserverpolicy} =~ /^(always|never|unlessvalid)$/) {
+        $kspolicy = $1;
+        msvalog("verbose", "using requested keyserver policy: %s\n", $1);
+      } else {
+        $kspolicy = get_keyserver_policy();
+      }
+      msvalog('debug', "keyserver policy: %s\n", $kspolicy);
+      # needed because $gnupg spawns child processes
+      $ENV{PATH} = '/usr/local/bin:/usr/bin:/bin';
+      if ($kspolicy eq 'always') {
+        fetch_uid_from_keyserver($uid);
+        $lastloop = 1;
+      } elsif ($kspolicy eq 'never') {
+        $lastloop = 1;
+      }
+      my $foundvalid = 0;
+
+      # fingerprints of keys that are not fully-valid for this User ID, but match
+      # the key from the queried certificate:
+      my @subvalid_key_fprs;
+
+      while (1) {
+        foreach my $gpgkey ($gnupg->get_public_keys('='.$uid)) {
+          my $validity = '-';
+          foreach my $tryuid ($gpgkey->user_ids) {
+            if ($tryuid->as_string eq $uid) {
+              $validity = $tryuid->validity;
             }
           }
-
-          # only show the marginal UI if the UID of the corresponding
-          # key is not fully valid.
-          if (!$foundvalid) {
-            my $resp = Crypt::Monkeysphere::MSVA::MarginalUI->ask_the_user($gnupg,
-                                                                           $uid,
-                                                                           \@subvalid_key_fprs,
-                                                                           getpidswithsocketinode($clientinfo->{inode}));
-            msvalog('info', "response: %s\n", $resp);
-            if ($resp) {
-              $ret->{valid} = JSON::true;
-              $ret->{message} = sprintf('Manually validated "%s" through the OpenPGP Web of Trust.', $uid);
+          # treat primary keys just like subkeys:
+          foreach my $subkey ($gpgkey, @{$gpgkey->subkeys}) {
+            my $primarymatch = keycomp($key, $subkey);
+            if ($primarymatch) {
+              if ($subkey->usage_flags =~ /a/) {
+                msvalog('verbose', "key matches, and 0x%s is authentication-capable\n", $subkey->hex_id);
+                if ($validity =~ /^[fu]$/) {
+                  $foundvalid = 1;
+                  msvalog('verbose', "...and it matches!\n");
+                  $ret->{valid} = JSON::true;
+                  $ret->{message} = sprintf('Successfully validated "%s" through the OpenPGP Web of Trust.', $uid);
+                } else {
+                  push(@subvalid_key_fprs, { fpr => $subkey->fingerprint, val => $validity }) if $lastloop;
+                }
+              } else {
+                msvalog('verbose', "key matches, but 0x%s is not authentication-capable\n", $subkey->hex_id);
+              }
             }
           }
         }
-      } else {
-        msvalog('error', "failed to decode %s\n", unpack('H*', $cert->pubkey()));
-        $ret->{message} = sprintf('failed to decode the public key', $uid);
+        if ($lastloop) {
+          last;
+        } else {
+          fetch_uid_from_keyserver($uid) if (!$foundvalid);
+          $lastloop = 1;
+        }
+      }
+
+      # only show the marginal UI if the UID of the corresponding
+      # key is not fully valid.
+      if (!$foundvalid) {
+        my $resp = Crypt::Monkeysphere::MSVA::MarginalUI->ask_the_user($gnupg,
+                                                                       $uid,
+                                                                       \@subvalid_key_fprs,
+                                                                       getpidswithsocketinode($clientinfo->{inode}),
+                                                                       $logger);
+        msvalog('info', "response: %s\n", $resp);
+        if ($resp) {
+          $ret->{valid} = JSON::true;
+          $ret->{message} = sprintf('Manually validated "%s" through the OpenPGP Web of Trust.', $uid);
+        }
       }
     }
-
     return $status, $ret;
+  }
+
+  sub pre_loop_hook {
+    my $self = shift;
+    my $server = shift;
+
+    $self->spawn_master_subproc($server);
+  }
+
+  sub master_subprocess_died {
+    my $self = shift;
+    my $server = shift;
+    my $subproc_return = shift;
+
+    my $exitstatus = POSIX::WEXITSTATUS($subproc_return);
+    msvalog('verbose', "Subprocess %d terminated; exiting %d.\n", $self->{child_pid}, $exitstatus);
+    $server->set_exit_status($exitstatus);
+    $server->server_close();
   }
 
   sub child_dies {
@@ -624,13 +734,32 @@
 
     msvalog('debug', "Subprocess %d terminated.\n", $pid);
 
-    if (exists $self->{child_pid} &&
-        ($self->{child_pid} == 0 ||
-         $self->{child_pid} == $pid)) {
+    if (exists $self->{updatemonitor} &&
+        defined $self->{updatemonitor}->getchildpid() &&
+        $self->{updatemonitor}->getchildpid() == $pid) {
       my $exitstatus = POSIX::WEXITSTATUS($?);
-      msvalog('verbose', "Subprocess %d terminated; exiting %d.\n", $pid, $exitstatus);
-      $server->set_exit_status($exitstatus);
-      $server->server_close();
+      msvalog('verbose', "Update monitoring process (%d) terminated with code %d.\n", $pid, $exitstatus);
+      if (0 == $exitstatus) {
+        msvalog('info', "Reloading MSVA due to update request.\n");
+        # sending self a SIGHUP:
+        kill(1, $$);
+      } else {
+        msvalog('error', "Update monitoring process (%d) died unexpectedly with code %d.\nNo longer monitoring for updates; please send HUP manually.\n", $pid, $exitstatus);
+        # it died for some other weird reason; should we respawn it?
+
+        # FIXME: i'm worried that re-spawning would create a
+        # potentially abusive loop, if there are legit, repeatable
+        # reasons for the failure.
+
+#        $self->{updatemonitor}->spawn();
+
+        # instead, we'll just avoid trying to kill the next process with this PID:
+        $self->{updatemonitor}->forget();
+      }
+    } elsif (exists $self->{child_pid} &&
+             ($self->{child_pid} == 0 ||
+              $self->{child_pid} == $pid)) {
+      $self->master_subprocess_died($server, $?);
     }
   }
 
@@ -646,6 +775,8 @@
   sub post_bind_hook {
     my $self = shift;
     my $server = shift;
+
+    $server->{server}->{leave_children_open_on_hup} = 1;
 
     my $socketcount = @{ $server->{server}->{sock} };
     if ( $socketcount != 1 ) {
@@ -665,13 +796,26 @@
       $server->server_close();
     }
     $self->port($port);
+    $self->{updatemonitor} = Crypt::Monkeysphere::MSVA::Monitor->new($logger);
+  }
+
+  sub spawn_master_subproc {
+    my $self = shift;
+    my $server = shift;
 
     if ((exists $ENV{MSVA_CHILD_PID}) && ($ENV{MSVA_CHILD_PID} ne '')) {
       # this is most likely a re-exec.
-      msvalog('info', "This appears to be a re-exec, monitoring child pid %d\n", $ENV{MSVA_CHILD_PID});
+      msvalog('info', "This appears to be a re-exec, continuing with child pid %d\n", $ENV{MSVA_CHILD_PID});
       $self->{child_pid} = $ENV{MSVA_CHILD_PID} + 0;
     } elsif ($#ARGV >= 0) {
       $self->{child_pid} = 0; # indicate that we are planning to fork.
+      # avoid ignoring SIGCHLD right before we fork.
+      $SIG{CHLD} = sub {
+        my $val;
+        while (defined($val = POSIX::waitpid(-1, POSIX::WNOHANG)) && $val > 0) {
+          $self->child_dies($val, $server);
+        }
+      };
       my $fork = fork();
       if (! defined $fork) {
         msvalog('error', "could not fork\n");
