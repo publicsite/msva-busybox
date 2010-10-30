@@ -95,6 +95,8 @@ Would you like to restart the validation agent?");
   sub childmain {
     my $self = shift;
 
+    $0 = 'MSVA (perl) Upgrade Monitor';
+
     $self->{files} = [ $0, values(%INC) ];
     $self->{logger}->log('debug3', "setting up monitoring on these files:\n%s\n", join("\n", @{$self->{files}}));
 
