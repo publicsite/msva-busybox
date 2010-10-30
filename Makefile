@@ -8,7 +8,7 @@
 VERSION=`dpkg-parsechangelog -lChangelog | grep ^Version: | cut -f2 -d\ `
 DEBIAN_VERSION=`dpkg-parsechangelog | grep ^Version: | cut -f2 -d\ `
 
-MANPAGES=msva-perl.1 msva-query-agent.1 msva-review-cert.1
+MANPAGES=msva-perl.1 msva-query-agent.1
 
 all: $(MANPAGES)
 
