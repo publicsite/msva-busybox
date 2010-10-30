@@ -171,7 +171,7 @@
       push(@goodlines, $line) if ($state eq 'body');
     }
 
-    msvalog('debug', "Found %d lines of RFC4716 body:\n%s\n", 
+    msvalog('debug', "Found %d lines of RFC4716 body:\n%s\n",
             scalar(@goodlines),
             join("\n", @goodlines));
     my $out = parse_rfc4716body(join('', @goodlines));
@@ -593,8 +593,8 @@
 
     my $uid = getuid($data);
     if ($uid eq []) {
-        msvalog('error', "invalid peer/context: %s/%s\n", $data->{context}, $data->{peer});
-        $ret->{message} = sprintf('invalid peer/context');
+        msvalog('error', "invalid context/peer: %s/%s\n", $data->{context}, $data->{peer});
+        $ret->{message} = sprintf('invalid context/peer');
         return $status, $ret;
     }
     msvalog('verbose', "context: %s\n", $data->{context});
