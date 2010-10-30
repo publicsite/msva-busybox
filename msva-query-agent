@@ -41,8 +41,8 @@ my ($status,$ret) = $client->query_agent($context,$peer,$pkctype,$pkcdata);
 $client->log('info', "status: %s\n", $status);
 if (defined $ret) {
   $client->log('info', "valid: %s\n", $ret->{valid});
-  $client->log('fatal', "message: %s\n", $ret->{message});
   $client->log('info', "server: %s\n", $ret->{server});
+  printf("%s\n", $ret->{message});
   exit 0
     if ($ret->{valid});
 }
