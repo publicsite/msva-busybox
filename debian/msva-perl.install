@@ -1,6 +1,10 @@
 msva-perl usr/bin
+msva-query-agent usr/bin
 Net/Server/MSVA.pm usr/share/perl5/Net/Server
 Crypt/Monkeysphere/MSVA.pm usr/share/perl5/Crypt/Monkeysphere
+Crypt/Monkeysphere/MSVA/Logger.pm usr/share/perl5/Crypt/Monkeysphere/MSVA
+Crypt/Monkeysphere/MSVA/Monitor.pm usr/share/perl5/Crypt/Monkeysphere/MSVA
 Crypt/Monkeysphere/MSVA/MarginalUI.pm usr/share/perl5/Crypt/Monkeysphere/MSVA
+Crypt/Monkeysphere/MSVA/Client.pm usr/share/perl5/Crypt/Monkeysphere/MSVA
 monkeysphere-icon.png usr/share/pixmaps
 debian/70monkeysphere_use-validation-agent etc/X11/Xsession.d

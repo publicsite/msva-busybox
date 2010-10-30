@@ -1,3 +1,9 @@
+msva-perl (0.6-1~pre) experimental; urgency=low
+
+  * New Upstream Release (to experimental)
+
+ -- Jameson Rollins <jrollins@finestructure.net>  Sat, 30 Oct 2010 03:39:59 -0400
+
 msva-perl (0.5-1) experimental; urgency=low
 
   * New Upstream Release (to experimental)
