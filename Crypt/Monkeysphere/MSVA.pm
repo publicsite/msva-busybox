@@ -491,7 +491,7 @@
 
   sub getuid {
     my $data = shift;
-    if ($data->{context} =~ /^(https|ssh)$/) {
+    if ($data->{context} =~ /^(https|ssh|ike)$/) {
       $data->{context} = $1;
       if ($data->{peer} =~ /^($RE{net}{domain})$/) {
         $data->{peer} = $1;
