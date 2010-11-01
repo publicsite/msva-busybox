@@ -69,7 +69,7 @@ msva-query-agent reads a certificate from standard input, and posts it
 to the running Monkeysphere Validation Agent.  The return code
 indicates the validity (as determined by the agent) of the certificate
 for the specified purpose.  The agent's return message (if any) is
-emitted on stderr.
+emitted on stdout.
 
 Three command-line arguments are all required, supplied in order, as
 follows:
