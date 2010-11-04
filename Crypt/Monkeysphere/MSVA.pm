@@ -489,17 +489,6 @@
     return $key;
   }
 
-  sub getuid {
-    my $data = shift;
-    if ($data->{context} =~ /^(https|ssh|smtp|ike)$/) {
-      $data->{context} = $1;
-      if ($data->{peer} =~ /^($RE{net}{domain})$/) {
-        $data->{peer} = $1;
-        return $data->{context}.'://'.$data->{peer};
-      }
-    }
-  }
-
   sub get_keyserver_policy {
     if (exists $ENV{MSVA_KEYSERVER_POLICY} and $ENV{MSVA_KEYSERVER_POLICY} ne '') {
       if ($ENV{MSVA_KEYSERVER_POLICY} =~ /^(always|never|unlessvalid)$/) {
@@ -591,15 +580,31 @@
                  message => 'Unknown failure',
                };
 
-    my $uid = getuid($data);
-    if ($uid eq []) {
-        msvalog('error', "invalid context/peer: %s/%s\n", $data->{context}, $data->{peer});
-        $ret->{message} = sprintf('invalid context/peer');
-        return $status, $ret;
+    # check context string
+    if ($data->{context} =~ /^(https|ssh|smtp|ike)$/) {
+	$data->{context} = $1;
+    } else {
+	msvalog('error', "invalid context: %s\n", $data->{context});
+	$ret->{message} = sprintf("Invalid context: %s", $data->{context});
+	return $status,$ret;
     }
     msvalog('verbose', "context: %s\n", $data->{context});
+
+    # checkout peer string
+    if ($data->{peer} =~ /^($RE{net}{domain})$/) {
+	$data->{peer} = $1;
+    } else {
+	msvalog('error', "invalid peer string: %s\n", $data->{peer});
+	$ret->{message} = sprintf("Invalid peer string: %s", $data->{peer});
+	return $status,$ret;
+    }
     msvalog('verbose', "peer: %s\n", $data->{peer});
 
+    # generate uid string
+    my $uid = $data->{context}.'://'.$data->{peer};
+    msvalog('verbose', "user ID: %s\n", $uid);
+
+    # check pkc type
     my $key;
     if (lc($data->{pkc}->{type}) eq 'x509der') {
       $key = der2key(join('', map(chr, @{$data->{pkc}->{data}})));
