@@ -1,5 +1,6 @@
 # Monkeysphere Validation Agent, Perl version
-# Copyright © 2010 Daniel Kahn Gillmor <dkg@fifthhorseman.net>
+# Copyright © 2010 Daniel Kahn Gillmor <dkg@fifthhorseman.net>,
+#                  Jameson Rollins <jrollins@finestructure.net>
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
