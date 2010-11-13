@@ -40,10 +40,11 @@
     my $self = shift;
     my $context = shift;
     my $peer = shift;
+    my $peertype = shift;
     my $pkctype = shift;
     my $pkcdata = shift;
 
-    my $apd = $self->create_apd($context, $peer, $pkctype, $pkcdata);
+    my $apd = $self->create_apd($context, $peer, $peertype, $pkctype, $pkcdata);
 
     my $apdjson = to_json($apd);
 
@@ -79,6 +80,7 @@
     my $self = shift;
     my $context = shift;
     my $peer = shift;
+    my $peertype = shift;
     my $pkctype = shift;
     my $pkcdata = shift;
 
@@ -117,14 +119,18 @@
       $self->log('error', "unknown pkc type '%s'.\n", $pkctype);
     };
 
-    return {
-            context => $context,
-            peer => $peer,
-            pkc => {
-                    type => $pkctype,
-                    data => $transformed_data,
-                   },
-           };
+    my $ret = {
+               context => $context,
+               peer => { name => $peer},
+               pkc => {
+                       type => $pkctype,
+                       data => $transformed_data,
+                      },
+              };
+    $ret->{peer}->{type} = $peertype
+      if (defined $peertype);
+
+    return $ret;
   };
 
 

@@ -582,27 +582,50 @@
                };
 
     # check context string
-    if ($data->{context} =~ /^(https|ssh|smtp|ike)$/) {
+    if ($data->{context} =~ /^(https|ssh|smtp|ike|postgresql|imaps|imap|submission)$/) {
 	$data->{context} = $1;
     } else {
 	msvalog('error', "invalid context: %s\n", $data->{context});
-	$ret->{message} = sprintf("Invalid context: %s", $data->{context});
+	$ret->{message} = sprintf("Invalid/unknown context: %s", $data->{context});
 	return $status,$ret;
     }
     msvalog('verbose', "context: %s\n", $data->{context});
 
     # checkout peer string
-    if ($data->{peer} =~ /^($RE{net}{domain})$/) {
-	$data->{peer} = $1;
+    # old-style just passed a string as a peer, rather than 
+    # peer: { name: 'whatever', 'type': 'client' }
+    $data->{peer} = { name => $data->{peer} }
+      if (ref($data->{peer}) ne 'HASH');
+
+    if ($data->{peer}->{name} =~ /^($RE{net}{domain})$/) {
+	$data->{peer}->{name} = $1;
     } else {
-	msvalog('error', "invalid peer string: %s\n", $data->{peer});
-	$ret->{message} = sprintf("Invalid peer string: %s", $data->{peer});
+	msvalog('error', "invalid peer name string: %s\n", $data->{peer}->{name});
+	$ret->{message} = sprintf("Invalid peer name string: %s", $data->{peer}->{name});
 	return $status,$ret;
     }
-    msvalog('verbose', "peer: %s\n", $data->{peer});
+    if (defined($data->{peer}->{type})) {
+      if ($data->{peer}->{type} =~ /^(client|server|peer)$/) {
+        $data->{peer}->{type} = $1;
+      } else {
+	msvalog('error', "invalid peer type string: %s\n", $data->{peer}->{type});
+	$ret->{message} = sprintf("Invalid peer type string: %s", $data->{peer}->{type});
+	return $status,$ret;
+      }
+    }
+
+    msvalog('verbose', "peer: %s\n", $data->{peer}->{name});
 
     # generate uid string
-    my $uid = $data->{context}.'://'.$data->{peer};
+    my $prefix = $data->{context}.'://';
+    if (defined $data->{peer}->{type} &&
+        $data->{peer}->{type} eq 'client' &&
+        # ike and smtp clients are effectively other servers, so we'll
+        # exclude them:
+        $data->{context} !~ /^(ike|smtp)$/) {
+      $prefix = '';
+    }
+    my $uid = $prefix.$data->{peer}->{name};
     msvalog('verbose', "user ID: %s\n", $uid);
 
     # check pkc type
