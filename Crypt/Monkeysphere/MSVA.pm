@@ -1,5 +1,6 @@
 # Monkeysphere Validation Agent, Perl version
-# Copyright © 2010 Daniel Kahn Gillmor <dkg@fifthhorseman.net>
+# Copyright © 2010 Daniel Kahn Gillmor <dkg@fifthhorseman.net>,
+#                  Jameson Rollins <jrollins@finestructure.net>
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -171,7 +172,7 @@
       push(@goodlines, $line) if ($state eq 'body');
     }
 
-    msvalog('debug', "Found %d lines of RFC4716 body:\n%s\n", 
+    msvalog('debug', "Found %d lines of RFC4716 body:\n%s\n",
             scalar(@goodlines),
             join("\n", @goodlines));
     my $out = parse_rfc4716body(join('', @goodlines));
@@ -489,17 +490,6 @@
     return $key;
   }
 
-  sub getuid {
-    my $data = shift;
-    if ($data->{context} =~ /^(https|ssh|ike)$/) {
-      $data->{context} = $1;
-      if ($data->{peer} =~ /^($RE{net}{domain})$/) {
-        $data->{peer} = $1;
-        return $data->{context}.'://'.$data->{peer};
-      }
-    }
-  }
-
   sub get_keyserver_policy {
     if (exists $ENV{MSVA_KEYSERVER_POLICY} and $ENV{MSVA_KEYSERVER_POLICY} ne '') {
       if ($ENV{MSVA_KEYSERVER_POLICY} =~ /^(always|never|unlessvalid)$/) {
@@ -591,15 +581,63 @@
                  message => 'Unknown failure',
                };
 
-    my $uid = getuid($data);
-    if ($uid eq []) {
-        msvalog('error', "invalid peer/context: %s/%s\n", $data->{context}, $data->{peer});
-        $ret->{message} = sprintf('invalid peer/context');
-        return $status, $ret;
+    # check context string
+    if ($data->{context} =~ /^(https|ssh|smtp|ike|postgresql|imaps|imap|submission)$/) {
+	$data->{context} = $1;
+    } else {
+	msvalog('error', "invalid context: %s\n", $data->{context});
+	$ret->{message} = sprintf("Invalid/unknown context: %s", $data->{context});
+	return $status,$ret;
     }
     msvalog('verbose', "context: %s\n", $data->{context});
-    msvalog('verbose', "peer: %s\n", $data->{peer});
 
+    # checkout peer string
+    # old-style just passed a string as a peer, rather than 
+    # peer: { name: 'whatever', 'type': 'client' }
+    $data->{peer} = { name => $data->{peer} }
+      if (ref($data->{peer}) ne 'HASH');
+
+    if (defined($data->{peer}->{type})) {
+      if ($data->{peer}->{type} =~ /^(client|server|peer)$/) {
+        $data->{peer}->{type} = $1;
+      } else {
+	msvalog('error', "invalid peer type string: %s\n", $data->{peer}->{type});
+	$ret->{message} = sprintf("Invalid peer type string: %s", $data->{peer}->{type});
+	return $status,$ret;
+      }
+    }
+
+    my $prefix = $data->{context}.'://';
+    if (defined $data->{peer}->{type} &&
+        $data->{peer}->{type} eq 'client' &&
+        # ike and smtp clients are effectively other servers, so we'll
+        # exclude them:
+        $data->{context} !~ /^(ike|smtp)$/) {
+      $prefix = '';
+      # clients can have any one-line User ID without NULL characters
+      # and leading or trailing whitespace
+      if ($data->{peer}->{name} =~ /^([^[:space:]][^\n\0]*[^[:space:]]|[^\0[:space:]])$/) {
+        $data->{peer}->{name} = $1;
+      } else {
+        msvalog('error', "invalid client peer name string: %s\n", $data->{peer}->{name});
+        $ret->{message} = sprintf("Invalid client peer name string: %s", $data->{peer}->{name});
+        return $status, $ret;
+      }
+    } elsif ($data->{peer}->{name} =~ /^($RE{net}{domain})$/) {
+      $data->{peer}->{name} = $1;
+    } else {
+      msvalog('error', "invalid peer name string: %s\n", $data->{peer}->{name});
+      $ret->{message} = sprintf("Invalid peer name string: %s", $data->{peer}->{name});
+      return $status,$ret;
+    }
+
+    msvalog('verbose', "peer: %s\n", $data->{peer}->{name});
+
+    # generate uid string
+    my $uid = $prefix.$data->{peer}->{name};
+    msvalog('verbose', "user ID: %s\n", $uid);
+
+    # check pkc type
     my $key;
     if (lc($data->{pkc}->{type}) eq 'x509der') {
       $key = der2key(join('', map(chr, @{$data->{pkc}->{data}})));

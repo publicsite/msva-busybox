@@ -60,9 +60,22 @@ for name in x y z ; do
     ssh-keygen -e -P '' -f "${WORKDIR}/sec/${name}.key" > "${WORKDIR}/pkc/${name}.rfc4716"
 done
 
+# make 2 client certs (A and B) with self-signed certs
+for name in a b ; do 
+    openssl req -x509 -subj "/eMail=${name}@example.net/CN=${name}/" -nodes -sha256 -newkey rsa:1024 -keyout "${WORKDIR}/sec/${name}.key" -outform DER -out "${WORKDIR}/pkc/${name}.x509der"
+    chmod 0400  "${WORKDIR}/sec/${name}.key"
+    openssl x509 -inform DER -outform PEM < "${WORKDIR}/pkc/${name}.x509der" > "${WORKDIR}/pkc/${name}.x509pem"
+    ssh-keygen -y -P '' -f "${WORKDIR}/sec/${name}.key" > "${WORKDIR}/pkc/${name}.opensshpubkey"
+    ssh-keygen -e -P '' -f "${WORKDIR}/sec/${name}.key" > "${WORKDIR}/pkc/${name}.rfc4716"
+done
+
 # translate X and Y's keys into OpenPGP cert
 for name in x y; do
     PEM2OPENPGP_USAGE_FLAGS=authenticate pem2openpgp "https://${name}.example.net" < "${WORKDIR}/sec/${name}.key" | gpg --import
+done
+# and the same for the clients A and B
+for name in a b; do
+    PEM2OPENPGP_USAGE_FLAGS=authenticate pem2openpgp "${name} <${name}@example.net>" < "${WORKDIR}/sec/${name}.key" | gpg --import
 done
 
 runtests() {
@@ -72,9 +85,16 @@ runtests() {
             ! "${srcdir}"/test-msva msva-perl "${srcdir}"/test-msva msva-query-agent https "${name}.example.net" "${ctype}" < "${WORKDIR}/pkc/x.${ctype}"
         done
     done
+    # A shouldn't validate as A or B:
+    for name in a b; do
+        for ctype in $CERTTYPES; do
+            ! "${srcdir}"/test-msva msva-perl "${srcdir}"/test-msva msva-query-agent https "${name} <${name}@example.net>" "${ctype}" client < "${WORKDIR}/pkc/a.${ctype}"
+        done
+    done
     
-    # certify X's OpenPGP cert with CA
+    # certify X and A's OpenPGP cert with CA
     gpg --batch --yes --sign-key https://x.example.net
+    gpg --batch --yes --sign-key a@example.net
 
     echo "Testing bad data:"
     # it should fail if we pass it the wrong kind of data:
@@ -85,11 +105,14 @@ runtests() {
     for ctype in $CERTTYPES; do 
     # X should now validate as X
         "${srcdir}"/test-msva msva-perl "${srcdir}"/test-msva msva-query-agent https x.example.net "${ctype}" < "${WORKDIR}/pkc/x.${ctype}"
+        "${srcdir}"/test-msva msva-perl "${srcdir}"/test-msva msva-query-agent https 'a <a@example.net>' "${ctype}" client < "${WORKDIR}/pkc/a.${ctype}"
         
     # but X should not validate as Y or Z:
         for name in x y z; do
             ! "${srcdir}"/test-msva msva-perl "${srcdir}"/test-msva msva-query-agent https "${name}.example.net" "${ctype}" < "${WORKDIR}/pkc/x.${ctype}"
         done
+        # and A shouldn't validate as B:
+        ! "${srcdir}"/test-msva msva-perl "${srcdir}"/test-msva msva-query-agent https "b <b@example.net>" "${ctype}" client < "${WORKDIR}/pkc/a.${ctype}"
 
     # neither Y nor Z should validate as any of them:
         for src in y z; do
@@ -97,6 +120,8 @@ runtests() {
                 ! "${srcdir}"/test-msva msva-perl "${srcdir}"/test-msva msva-query-agent https "${targ}.example.net" "${ctype}" < "${WORKDIR}/pkc/${src}.${ctype}"
             done
         done
+        # B should also still not validate as itself:
+        ! "${srcdir}"/test-msva msva-perl "${srcdir}"/test-msva msva-query-agent https "b <b@example.net>" "${ctype}" client < "${WORKDIR}/pkc/b.${ctype}"
     done
 }
 
