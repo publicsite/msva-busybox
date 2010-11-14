@@ -11,11 +11,14 @@ msva-perl (0.6~pre) upstream;
   * fixed double-prompting on sites that have more than one User ID
     (closes MS #2567)
   * report server implementation name and version with every query (closes
-    MS # 2564)
+    MS #2564)
   * support x509pem, opensshpubkey, and rfc4716 PKC formats in addition to
     x509der (addresses MS #2566)
+  * add new peer type categorization (closes MS #2568) -- peers of type
+    client can have much more flexible names than regular hostnames we
+    look for for servers.
 
- -- Daniel Kahn Gillmor <dkg@fifthhorseman.net>  Fri, 29 Oct 2010 03:48:50 -0400
+ -- Daniel Kahn Gillmor <dkg@fifthhorseman.net>  Sun, 14 Nov 2010 03:04:13 -0500
 
 msva-perl (0.5) upstream;
 

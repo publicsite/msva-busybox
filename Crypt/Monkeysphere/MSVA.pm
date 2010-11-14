@@ -597,13 +597,6 @@
     $data->{peer} = { name => $data->{peer} }
       if (ref($data->{peer}) ne 'HASH');
 
-    if ($data->{peer}->{name} =~ /^($RE{net}{domain})$/) {
-	$data->{peer}->{name} = $1;
-    } else {
-	msvalog('error', "invalid peer name string: %s\n", $data->{peer}->{name});
-	$ret->{message} = sprintf("Invalid peer name string: %s", $data->{peer}->{name});
-	return $status,$ret;
-    }
     if (defined($data->{peer}->{type})) {
       if ($data->{peer}->{type} =~ /^(client|server|peer)$/) {
         $data->{peer}->{type} = $1;
@@ -614,9 +607,6 @@
       }
     }
 
-    msvalog('verbose', "peer: %s\n", $data->{peer}->{name});
-
-    # generate uid string
     my $prefix = $data->{context}.'://';
     if (defined $data->{peer}->{type} &&
         $data->{peer}->{type} eq 'client' &&
@@ -624,7 +614,26 @@
         # exclude them:
         $data->{context} !~ /^(ike|smtp)$/) {
       $prefix = '';
+      # clients can have any one-line User ID without NULL characters
+      # and leading or trailing whitespace
+      if ($data->{peer}->{name} =~ /^([^[:space:]][^\n\0]*[^[:space:]]|[^\0[:space:]])$/) {
+        $data->{peer}->{name} = $1;
+      } else {
+        msvalog('error', "invalid client peer name string: %s\n", $data->{peer}->{name});
+        $ret->{message} = sprintf("Invalid client peer name string: %s", $data->{peer}->{name});
+        return $status, $ret;
+      }
+    } elsif ($data->{peer}->{name} =~ /^($RE{net}{domain})$/) {
+      $data->{peer}->{name} = $1;
+    } else {
+      msvalog('error', "invalid peer name string: %s\n", $data->{peer}->{name});
+      $ret->{message} = sprintf("Invalid peer name string: %s", $data->{peer}->{name});
+      return $status,$ret;
     }
+
+    msvalog('verbose', "peer: %s\n", $data->{peer}->{name});
+
+    # generate uid string
     my $uid = $prefix.$data->{peer}->{name};
     msvalog('verbose', "user ID: %s\n", $uid);
 
