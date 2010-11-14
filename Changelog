@@ -1,4 +1,4 @@
-msva-perl (0.6~pre) upstream;
+msva-perl (0.6) upstream;
 
   * Add new element to JSON syntax allowing request to override
     keyserver_policy (closes MS #2542)
