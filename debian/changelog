@@ -1,8 +1,11 @@
 msva-perl (0.6-1) experimental; urgency=low
 
   * New Upstream Release (to experimental)
+  * added some Recommends: needed for some new (optional) features:
+    - msva-query-agent (command-line query tool)
+    - autodetection of updates to a running agent
 
- -- Daniel Kahn Gillmor <dkg@fifthhorseman.net>  Sun, 14 Nov 2010 03:13:03 -0500
+ -- Daniel Kahn Gillmor <dkg@fifthhorseman.net>  Sun, 14 Nov 2010 13:57:02 -0500
 
 msva-perl (0.5-1) experimental; urgency=low
 

@@ -25,7 +25,10 @@ Depends:
  libconfig-general-perl,
  ${misc:Depends}
 Recommends:
- libgtk2-perl
+ libgtk2-perl,
+ libanyevent-perl,
+ liblinux-inotify2-perl,
+ libwww-perl
 Conflicts: monkeysphere (<< 0.32)
 Provides: monkeysphere-validation-agent
 Enhances: xul-ext-monkeysphere
