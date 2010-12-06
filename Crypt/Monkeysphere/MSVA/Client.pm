@@ -43,8 +43,9 @@
     my $peertype = shift;
     my $pkctype = shift;
     my $pkcdata = shift;
+    my $keyserverpolicy = shift;
 
-    my $apd = $self->create_apd($context, $peer, $peertype, $pkctype, $pkcdata);
+    my $apd = $self->create_apd($context, $peer, $peertype, $pkctype, $pkcdata, $keyserverpolicy);
 
     my $apdjson = to_json($apd);
 
@@ -83,6 +84,7 @@
     my $peertype = shift;
     my $pkctype = shift;
     my $pkcdata = shift;
+    my $keyserverpolicy = shift;
 
     $self->log('debug', "context: %s\n", $context);
     $self->log('debug', "peer: %s\n", $peer);
@@ -129,6 +131,8 @@
               };
     $ret->{peer}->{type} = $peertype
       if (defined $peertype);
+    $ret->{keyserverpolicy} = $keyserverpolicy
+      if (defined $keyserverpolicy);
 
     return $ret;
   };
