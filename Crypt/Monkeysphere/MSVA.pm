@@ -41,7 +41,7 @@
   # we need the version of GnuPG::Interface that knows about pubkey_data, etc:
   use GnuPG::Interface 0.42.02;
 
-  $VERSION = '0.6';
+  $VERSION = '0.7';
 
   my $gnupg = GnuPG::Interface->new();
   $gnupg->options->quiet(1);

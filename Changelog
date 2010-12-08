@@ -1,8 +1,10 @@
 msva-perl (0.7~pre) unstable; urgency=low
 
   * udpated msva-query-agent documentation
+  * added gpgkeys_hkpms for monkeysphere-authenticated HKPS access
+    (closes MS #2016)
 
- -- Daniel Kahn Gillmor <dkg@fifthhorseman.net>  Sun, 14 Nov 2010 18:51:18 -0500
+ -- Daniel Kahn Gillmor <dkg@fifthhorseman.net>  Tue, 07 Dec 2010 21:34:23 -0500
 
 msva-perl (0.6) upstream;
 
