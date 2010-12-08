@@ -28,6 +28,9 @@ Recommends:
  libgtk2-perl,
  libanyevent-perl,
  liblinux-inotify2-perl,
+ liburi-perl,
+ libnet-ssleay-perl,
+ libio-socket-ssl-perl,
  libwww-perl
 Conflicts: monkeysphere (<< 0.32)
 Provides: monkeysphere-validation-agent
