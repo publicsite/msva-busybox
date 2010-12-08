@@ -57,7 +57,7 @@ msva-query-agent - query a Monkeysphere Validation Agent
 
 =head1 SYNOPSIS
 
-msva-query-agent CONTEXT PEER PKC_TYPE [PEERTYPE] < /path/to/public_key_carrier
+msva-query-agent CONTEXT PEER PKC_TYPE [PEER_TYPE] < /path/to/public_key_carrier
 
 =head1 ABSTRACT
 
@@ -98,7 +98,7 @@ The fourth argument is optional:
 
 =over 4
 
-=item PEERTYPE
+=item PEER_TYPE
 
 The type of peer we are inquiring about (e.g. 'client', 'server')
 

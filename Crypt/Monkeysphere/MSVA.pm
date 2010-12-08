@@ -19,6 +19,7 @@
 
   use strict;
   use warnings;
+  use vars qw($VERSION);
 
   use parent qw(HTTP::Server::Simple::CGI);
   require Crypt::X509;
@@ -40,7 +41,7 @@
   # we need the version of GnuPG::Interface that knows about pubkey_data, etc:
   use GnuPG::Interface 0.42.02;
 
-  my $VERSION = '0.6';
+  $VERSION = '0.7';
 
   my $gnupg = GnuPG::Interface->new();
   $gnupg->options->quiet(1);
