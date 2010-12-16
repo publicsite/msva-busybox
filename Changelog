@@ -1,4 +1,4 @@
-msva-perl (0.7~pre) unstable; urgency=low
+msva-perl (0.7) unstable; urgency=low
 
   * udpated msva-query-agent documentation
   * added gpgkeys_hkpms for monkeysphere-authenticated HKPS access
