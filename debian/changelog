@@ -1,4 +1,4 @@
-msva-perl (0.7~pre-1) experimental; urgency=low
+msva-perl (0.7-1) experimental; urgency=low
 
   * new Upstream release (to experimental)
   * installs gpgkeys_hkpms for gpg and gpg2.
