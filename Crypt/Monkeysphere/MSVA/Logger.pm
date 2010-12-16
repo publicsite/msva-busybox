@@ -55,6 +55,25 @@
 
     return $self->{loglevel};
   }
+  sub set_log_level {
+    my $self = shift;
+    my $loglevel = shift;
+    my $logval = $loglevels{lc($loglevel)};
+
+    if (defined($logval)) {
+      $self->{loglevel} = $logval;
+    } else {
+      $self->log('error', "Invalid log level: '%s' (log level not changed)\n", $loglevel);
+    }
+  }
+  sub more_verbose {
+    my $self = shift;
+    my $increment = shift;
+
+    $increment = 1
+      if (!defined $increment);
+    $self->{loglevel} += $increment;
+  }
 
   # let the user test to see if we're noisier than this level
   # directly:

@@ -34,6 +34,28 @@ use warnings;
           my @args = split(/ /, $line);
           my $cmd = shift @args;
           $self->{config}->{lc($cmd)} = join(' ', @args);
+          if (lc($cmd) eq 'option') {
+            my $opt = lc($args[0]);
+            if ($opt eq 'debug') {
+              $self->{logger}->set_log_level('debug');
+            } elsif ($opt eq 'verbose') {
+              $self->{logger}->more_verbose();
+            } elsif ($opt eq 'no-check-cert') {
+              $self->{logger}->log('error', "Received no-check-cert option.  Why are you bothering with hkpms if you aren't checking?\n");
+              $self->{actually_check} = 0;
+            } elsif ($opt eq 'check-cert') {
+              $self->{actually_check} = 1;
+            } else {
+              $self->{logger}->log('error', "Received '%s' as an option, but gpgkeys_hkpms does not implement it. Ignoring...\n");
+            }
+            # FIXME: consider other keyserver-options from gpg(1).
+            # in particular, the following might be interesting:
+            # timeout
+            # include-revoked
+            # include-disabled
+            # ca-cert-file
+            # http-proxy
+          }
         }
       } else {
         push(@{$self->{args}}, $line);
@@ -49,7 +71,7 @@ use warnings;
 
     if (exists $self->{cache}->{$certpem}) {
       ($status, $ret) = @{$self->{cache}->{$certpem}};
-      $self->{logger}->log('verbose', "Found response in cache\n");
+      $self->{logger}->log('debug', "Found response in cache\n");
     } else {
       # use Crypt::Monkeysphere::MSVA::Client if available:
       if (defined($self->{client})) {
@@ -78,11 +100,18 @@ use warnings;
       # to get called 3 times by perl for some reason. (see
       # https://bugs.debian.org/606249)
       $self->{cache}->{$certpem} = [ $status, $ret ];
-      $self->{logger}->log('info', "%s\n", $ret->{message})
-        if defined $ret->{message};
+      if (JSON::is_bool($ret->{valid}) && ($ret->{valid} eq 1)) {
+        $self->{logger}->log('verbose', "Monkeysphere HKPMS Certificate validation succeeded:\n  %s\n", $ret->{message});
+      } else {
+        $self->{logger}->log('error', "Monkeysphere HKPMS Certificate validation failed:\n  %s\n", $ret->{message});
+      }
     }
 
-    return (JSON::is_bool($ret->{valid}) && ($ret->{valid} eq 1));
+    if (JSON::is_bool($ret->{valid}) && ($ret->{valid} eq 1)) {
+      return 1;
+    } else {
+      return 0;
+    }
   }
 
   sub query {
@@ -91,14 +120,15 @@ use warnings;
     # FIXME: i'd like to pass this debug argument to IO::Socket::SSL,
     # but i don't know how to do that.
     # i get 'Variable "@iosslargs" will not stay shared' if i try to call
-    # use IO::Socket::SSL 1.35 @iosslargs;
+    # use IO::Socket::SSL 1.37 @iosslargs;
     my @iosslargs = ();
     if ($self->{logger}->get_log_level() >= 4) {
       push @iosslargs, sprintf("debug%d", int($self->{logger}->get_log_level() - 3));
     }
 
-    # earlier versions can fail open, defeating the purpose here.
-    use IO::Socket::SSL 1.35;
+    # versions earlier than 1.35 can fail open: bad news!.
+    # 1.37 lets us set ca_path and ca_file to undef, which is what we want.
+    use IO::Socket::SSL 1.37;
     use Net::SSLeay;
     use LWP::UserAgent;
     use URI;
@@ -106,8 +136,8 @@ use warnings;
     IO::Socket::SSL::set_ctx_defaults(
                                       verify_callback => sub { $self->verify_cert(@_); },
                                       verify_mode => 0x03,
-                                      # this parameter is foolish: http://bugs.debian.org/606243
-                                      ca_path => '.',
+                                      ca_path => undef,
+                                      ca_file => undef,
                                      );
 
     my $ua = LWP::UserAgent->new();
@@ -199,18 +229,20 @@ use warnings;
   sub new {
     my $class = shift;
 
+    my $default_log_level = 'error';
     my $client;
     if (exists($ENV{MONKEYSPHERE_VALIDATION_AGENT_SOCKET})) {
       $client = Crypt::Monkeysphere::MSVA::Client->new(
                                                        socket => $ENV{MONKEYSPHERE_VALIDATION_AGENT_SOCKET},
-                                                       log_level => $ENV{MSVA_LOG_LEVEL},
+                                                       log_level => $default_log_level,
                                                       );
     }
     my $self = { config => { },
                  args => [ ],
-                 logger => Crypt::Monkeysphere::MSVA::Logger->new($ENV{MSVA_LOG_LEVEL}),
+                 logger => (defined($client) ? $client->{logger} : Crypt::Monkeysphere::MSVA::Logger->new($default_log_level)),
                  cache => { },
                  client => $client,
+                 actually_check => 1,
                };
 
     bless ($self, $class);
