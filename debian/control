@@ -30,7 +30,7 @@ Recommends:
  liblinux-inotify2-perl,
  liburi-perl,
  libnet-ssleay-perl,
- libio-socket-ssl-perl,
+ libio-socket-ssl-perl (>=1.37),
  libwww-perl
 Conflicts: monkeysphere (<< 0.32)
 Provides: monkeysphere-validation-agent
