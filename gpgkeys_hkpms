@@ -34,16 +34,28 @@ use warnings;
           my @args = split(/ /, $line);
           my $cmd = shift @args;
           $self->{config}->{lc($cmd)} = join(' ', @args);
-          # FIXME: consider other keyserver-options from gpg(1).
-          # in particular, the following might be interesting:
-          # debug
-          # verbose
-          # timeout
-          # check-cert
-          # include-revoked
-          # include-disabled
-          # ca-cert-file
-          # http-proxy
+          if (lc($cmd) eq 'option') {
+            my $opt = lc($args[0]);
+            if ($opt eq 'debug') {
+              $self->{logger}->set_log_level('debug');
+            } elsif ($opt eq 'verbose') {
+              $self->{logger}->more_verbose();
+            } elsif ($opt eq 'no-check-cert') {
+              $self->{logger}->log('error', "Received no-check-cert option.  Why are you bothering with hkpms if you aren't checking?\n");
+              $self->{actually_check} = 0;
+            } elsif ($opt eq 'check-cert') {
+              $self->{actually_check} = 1;
+            } else {
+              $self->{logger}->log('error', "Received '%s' as an option, but gpgkeys_hkpms does not implement it. Ignoring...\n");
+            }
+            # FIXME: consider other keyserver-options from gpg(1).
+            # in particular, the following might be interesting:
+            # timeout
+            # include-revoked
+            # include-disabled
+            # ca-cert-file
+            # http-proxy
+          }
         }
       } else {
         push(@{$self->{args}}, $line);
@@ -217,18 +229,20 @@ use warnings;
   sub new {
     my $class = shift;
 
+    my $default_log_level = 'error';
     my $client;
     if (exists($ENV{MONKEYSPHERE_VALIDATION_AGENT_SOCKET})) {
       $client = Crypt::Monkeysphere::MSVA::Client->new(
                                                        socket => $ENV{MONKEYSPHERE_VALIDATION_AGENT_SOCKET},
-                                                       log_level => $ENV{MSVA_LOG_LEVEL},
+                                                       log_level => $default_log_level,
                                                       );
     }
     my $self = { config => { },
                  args => [ ],
-                 logger => Crypt::Monkeysphere::MSVA::Logger->new($ENV{MSVA_LOG_LEVEL}),
+                 logger => (defined($client) ? $client->{logger} : Crypt::Monkeysphere::MSVA::Logger->new($default_log_level)),
                  cache => { },
                  client => $client,
+                 actually_check => 1,
                };
 
     bless ($self, $class);
