@@ -505,7 +505,7 @@
     # We should read from (first hit wins):
     # the environment
     if (exists $ENV{MSVA_KEYSERVER} and $ENV{MSVA_KEYSERVER} ne '') {
-      if ($ENV{MSVA_KEYSERVER} =~ /^(((hkps?|finger|ldap):\/\/)?$RE{net}{domain})$/) {
+      if ($ENV{MSVA_KEYSERVER} =~ /^(((hkps?|hkpms|finger|ldap):\/\/)?$RE{net}{domain})$/) {
         return $1;
       }
       msvalog('error', "Not a valid keyserver (from MSVA_KEYSERVER):\n  %s\n", $ENV{MSVA_KEYSERVER});
