@@ -46,7 +46,7 @@ use warnings;
             } elsif ($opt eq 'check-cert') {
               $self->{actually_check} = 1;
             } else {
-              $self->{logger}->log('error', "Received '%s' as an option, but gpgkeys_hkpms does not implement it. Ignoring...\n");
+              $self->{logger}->log('error', "Received '%s' as an option, but gpgkeys_hkpms does not implement it. Ignoring...\n", $opt);
             }
             # FIXME: consider other keyserver-options from gpg(1).
             # in particular, the following might be interesting:
