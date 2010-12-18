@@ -140,7 +140,7 @@ use warnings;
                                       ca_file => undef,
                                      );
 
-    my $ua = LWP::UserAgent->new();
+    my $ua = LWP::UserAgent::->new();
 
     printf("VERSION 1\nPROGRAM %s gpgkeys_hkpms msva-perl/%s\n",
            $self->{config}->{program},  # this is kind of cheating :/
@@ -150,7 +150,7 @@ use warnings;
     $self->{logger}->log('debug', "command: %s\n", $self->{config}->{command});
     if (lc($self->{config}->{command}) eq 'search') {
       # for COMMAND = SEARCH, we want op=index, and we want to rejoin all args with spaces.
-      my $uri = new URI(sprintf('https://%s/pks/lookup', $self->{config}->{host}));
+      my $uri = URI::->new(sprintf('https://%s/pks/lookup', $self->{config}->{host}));
       my $arg = join(' ', @{$self->{args}});
       $uri->query_form(op => 'index',
                        options => 'mr',
@@ -158,6 +158,7 @@ use warnings;
                       );
       $arg =~ s/\n/ /g ; # swap out newlines for spaces
       printf("\n%s %s BEGIN\n", $self->{config}->{command}, $arg);
+      $self->{logger}->log('debug', "URI: %s\n", $uri);
       my $resp = $ua->get($uri);
       if ($resp->is_success) {
         print($resp->decoded_content);
@@ -168,7 +169,7 @@ use warnings;
       printf("\n%s %s END\n", $self->{config}->{command}, $arg);
     } elsif (lc($self->{config}->{command}) eq 'get') {
       # for COMMAND = GET, we want op=get, and we want to issue each query separately.
-      my $uri = new URI(sprintf('https://%s/pks/lookup', $self->{config}->{host}));
+      my $uri = URI::->new(sprintf('https://%s/pks/lookup', $self->{config}->{host}));
       foreach my $arg (@{$self->{args}}) {
         printf("\n%s %s BEGIN\n", $self->{config}->{command}, $arg);
         $uri->query_form(op => 'get',
@@ -198,7 +199,7 @@ use warnings;
           if ($arg eq sprintf('KEY %s END', $keyid)) {
             $self->{logger}->log('debug', "Found KEY END line with %d lines of data elapsed\n", scalar(@keydata));
             # for sending keys, we want to POST to /pks/add, with a keytext variable.
-            my $uri = new URI(sprintf('https://%s/pks/add', $self->{config}->{host}));
+            my $uri = URI::->new(sprintf('https://%s/pks/add', $self->{config}->{host}));
             my $resp = $ua->post($uri, {keytext => join("\n", @keydata)});
             if ($resp->is_success) {
               printf("\n%s", $resp->decoded_content);
@@ -232,14 +233,14 @@ use warnings;
     my $default_log_level = 'error';
     my $client;
     if (exists($ENV{MONKEYSPHERE_VALIDATION_AGENT_SOCKET})) {
-      $client = Crypt::Monkeysphere::MSVA::Client->new(
-                                                       socket => $ENV{MONKEYSPHERE_VALIDATION_AGENT_SOCKET},
-                                                       log_level => $default_log_level,
-                                                      );
+      $client = Crypt::Monkeysphere::MSVA::Client::->new(
+                                                         socket => $ENV{MONKEYSPHERE_VALIDATION_AGENT_SOCKET},
+                                                         log_level => $default_log_level,
+                                                        );
     }
     my $self = { config => { },
                  args => [ ],
-                 logger => (defined($client) ? $client->{logger} : Crypt::Monkeysphere::MSVA::Logger->new($default_log_level)),
+                 logger => (defined($client) ? $client->{logger} : Crypt::Monkeysphere::MSVA::Logger::->new($default_log_level)),
                  cache => { },
                  client => $client,
                  actually_check => 1,
@@ -252,7 +253,7 @@ use warnings;
 }
 
 
-my $hkpms = Crypt::Monkeysphere::MSVA::HKPMS->new();
+my $hkpms = Crypt::Monkeysphere::MSVA::HKPMS::->new();
 
 my $input = # load gpg instructions from stdin:
   do {

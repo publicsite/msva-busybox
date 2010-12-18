@@ -135,7 +135,7 @@ GnuPG calculated validity for the peer: %s",
               my $cmd = '<unknown>';
               # FIXME: not very portable
               my $procfh;
-              $procfh = new IO::File(sprintf('/proc/%d/cmdline', $clientpid));
+              $procfh = IO::File::->new(sprintf('/proc/%d/cmdline', $clientpid));
               if (defined $procfh) {
                 $cmd = <$procfh>;
                 $procfh->close;
@@ -173,10 +173,10 @@ GnuPG calculated validity for the peer: %s",
     Gtk2->init();
     # create a new dialog with some buttons - one stock, one not.
     my $dialog = Gtk2::Dialog->new(sprintf('Monkeysphere validation agent [%s]', $peer),
-				    undef,
-				    [],
-				    'gtk-no' => 'cancel',
-				    'gtk-yes' => 'ok');
+                                   undef,
+                                   [],
+                                   'gtk-no' => 'cancel',
+                                   'gtk-yes' => 'ok');
 
 
 

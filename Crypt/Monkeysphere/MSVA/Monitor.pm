@@ -108,7 +108,7 @@ Would you like to restart the validation agent?");
 
     require Linux::Inotify2;
 
-    $self->{inotify} = new Linux::Inotify2
+    $self->{inotify} = Linux::Inotify2::->new()
       or die "unable to create new inotify object: $!";
 
     my $flags = 0xc06;
