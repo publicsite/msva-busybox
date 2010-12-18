@@ -524,7 +524,7 @@
     if (-f $gpgconf) {
       if (-r $gpgconf) {
         my %gpgconfig = Config::General::ParseConfig($gpgconf);
-        if ($gpgconfig{keyserver} =~ /^(((hkps?|finger|ldap):\/\/)?$RE{net}{domain})$/) {
+        if ($gpgconfig{keyserver} =~ /^(((hkps?|hkpms|finger|ldap):\/\/)?$RE{net}{domain})$/) {
           msvalog('debug', "Using keyserver %s from the GnuPG configuration file (%s)\n", $1, $gpgconf);
           return $1;
         } else {
