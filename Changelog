@@ -1,4 +1,13 @@
-msva-perl (0.7) unstable; urgency=low
+msva-perl (0.8~pre) upstream;
+
+  * minor bugfix release!
+  * avoid indirect object creation.
+  * bug fix for unused option messages.
+  * allow use of hkpms keyservers from gpg.conf
+
+ -- Daniel Kahn Gillmor <dkg@fifthhorseman.net>  Sat, 18 Dec 2010 18:27:31 -0500
+
+msva-perl (0.7) upstream;
 
   * udpated msva-query-agent documentation
   * added gpgkeys_hkpms for monkeysphere-authenticated HKPS access
