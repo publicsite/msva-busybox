@@ -32,6 +32,8 @@ Recommends:
  libnet-ssleay-perl,
  libio-socket-ssl-perl (>=1.37),
  libwww-perl
+Suggests:
+ liblwp-protocol-socks-perl
 Conflicts: monkeysphere (<< 0.32)
 Provides: monkeysphere-validation-agent
 Enhances: xul-ext-monkeysphere

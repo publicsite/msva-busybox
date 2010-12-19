@@ -1,3 +1,12 @@
+msva-perl (0.8-1) experimental; urgency=low
+
+  * New Upstream bugfix Release.
+   - added Suggests: liblwp-protocol-socks-perl to enable the use of
+    --keyserver-options http-proxy=socks://localhost:9050 for
+    gpgkeys_hkpms over tor.
+
+ -- Daniel Kahn Gillmor <dkg@fifthhorseman.net>  Mon, 20 Dec 2010 04:09:51 -0500
+
 msva-perl (0.7-1) experimental; urgency=low
 
   * new Upstream release (to experimental)
