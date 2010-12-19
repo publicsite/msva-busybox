@@ -624,7 +624,7 @@
         $ret->{message} = sprintf("Invalid client peer name string: %s", $data->{peer}->{name});
         return $status, $ret;
       }
-    } elsif ($data->{peer}->{name} =~ /^($RE{net}{domain})$/) {
+    } elsif ($data->{peer}->{name} =~ /^($RE{net}{domain}(:[[:digit:]]+)?)$/) {
       $data->{peer}->{name} = $1;
     } else {
       msvalog('error', "invalid peer name string: %s\n", $data->{peer}->{name});
