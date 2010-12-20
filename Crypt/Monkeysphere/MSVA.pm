@@ -217,6 +217,10 @@
   sub getpidswithsocketinode {
     my $sockid = shift;
 
+    if (! defined ($sockid)) {
+      msvalog('verbose', "No client socket ID to check.  The MSVA is probably not running as a service.\n");
+      return [];
+    }
     # this appears to be how Linux symlinks open sockets in /proc/*/fd,
     # as of at least 2.6.26:
     my $socktarget = sprintf('socket:[%d]', $sockid);

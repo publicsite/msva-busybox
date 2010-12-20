@@ -92,6 +92,7 @@ use warnings;
         ($status, $ret) = $self->{client}->query_agent('https', $self->{config}->{host}, 'server', 'x509pem', $certpem, 'never');
       } else {
         use Crypt::Monkeysphere::MSVA;
+        $self->{logger}->log('verbose', "Could not find a running agent (MONKEYSPHERE_VALIDATION_AGENT_SOCKET env var).\nFalling back to in-process certificate checks.\n");
         # If there is no running agent, we might want to be able to fall
         # back here.
 
