@@ -1,10 +1,10 @@
-msva-perl (0.8~pre) upstream;
+msva-perl (0.8) upstream;
 
-  * minor bugfix release!
-  * avoid indirect object creation.
-  * bug fix for unused option messages.
-  * allow use of hkpms keyservers from gpg.conf
-  * allow the use of ports in hostnames (closes MS # 2665)
+  * Minor bugfix release!
+  * Avoid indirect object creation (thanks to intrigeri for pointing this out).
+  * Bug fix for unused option provided to gpgkeys_hkpms.
+  * Allow use of hkpms keyservers from gpg.conf
+  * Allow the use of ports in hostnames (closes MS # 2665)
   * Do not report self-sigs as other certifiers (but report valid,
     non-matching identities independently) (closes MS # 2569)
   * List certifiers only once (closes MS # 2573)
