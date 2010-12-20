@@ -5,9 +5,11 @@ msva-perl (0.8~pre) upstream;
   * bug fix for unused option messages.
   * allow use of hkpms keyservers from gpg.conf
   * allow the use of ports in hostnames (closes MS # 2665)
+  * Do not report self-sigs as other certifiers (but report valid,
+    non-matching identities independently) (closes MS # 2569)
 
- -- Daniel Kahn Gillmor <dkg@fifthhorseman.net>  Sat, 18 Dec 2010 20:51:07 -0500
-
+ -- Daniel Kahn Gillmor <dkg@fifthhorseman.net>  Mon, 20 Dec 2010 01:53:48 -0500
+  
 msva-perl (0.7) upstream;
 
   * udpated msva-query-agent documentation
