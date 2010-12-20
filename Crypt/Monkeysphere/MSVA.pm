@@ -183,6 +183,9 @@
 
   sub parse_rfc4716body {
     my $data = shift;
+
+    return undef
+      unless defined($data);
     $data = decode_base64($data) or return undef;
 
     msvalog('debug', "key properties: %s\n", unpack('H*', $data));
