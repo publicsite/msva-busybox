@@ -45,12 +45,16 @@
       return 0;
     }
 
-
     foreach my $keyfpr (@subvalid_key_fprs) {
-      my $fprx = sprintf('0x%.40s', $keyfpr->{fpr}->as_hex_string);
+      my $fprx = sprintf('0x%.40s', $keyfpr->{fpr}->as_hex_string());
       $logger->log('debug', "checking on %s\n", $fprx);
       foreach my $gpgkey ($gnupg->get_public_keys_with_sigs($fprx)) {
         $logger->log('debug', "found key %.40s\n", $gpgkey->fingerprint->as_hex_string);
+
+        my @valid_certifiers = ();
+        my @marginal_certifiers = ();
+        my @valid_other_userids = ();
+        my @marginal_other_userids = ();
 
         # FIXME: if there are multiple keys in the OpenPGP WoT
         # with the same key material and the same User ID
@@ -60,13 +64,18 @@
         # to do is.
         foreach my $user_id ($gpgkey->user_ids) {
           $logger->log('debug', "found EE User ID %s\n", $user_id->as_string);
-          my @valid_certifiers = ();
-          my @marginal_certifiers = ();
+          my @vcertifiers = ();
+          my @mcertifiers = ();
           if ($user_id->as_string eq $uid) {
             # get a list of the certifiers of the relevant User ID for the key
             foreach my $cert (@{$user_id->signatures}) {
               if ($cert->hex_id =~ /^([A-Fa-f0-9]{16})$/) {
                 my $certid = $1;
+                # disregard self-certifications (see MS # 2569):
+                if (lc($certid) eq lc(substr($keyfpr->{fpr}->as_hex_string(), -16))) {
+                  $logger->log('debug', "found self-sig 0x%.16s\n", $certid);
+                  next;
+                }
                 $logger->log('debug', "found certifier 0x%.16s\n", $certid);
                 if ($cert->is_valid()) {
                   foreach my $certifier ($gnupg->get_public_keys(sprintf('0x%.40s!', $certid))) {
@@ -76,18 +85,23 @@
                       # grab the first full or ultimate user ID on
                       # this certifier's key:
                       if ($cuid->validity =~ /^[fu]$/) {
-                        push(@valid_certifiers, { key_id => $cert->hex_id,
-                                                  user_id => $cuid->as_string,
-                                                } );
-                        $valid_cuid = 1;
+                        if (0 == grep { $_->{key_id} eq $cert->hex_id && $_->{user_id} eq $cuid->as_string ; } @vcertifiers) {
+                          push(@vcertifiers, { key_id => $cert->hex_id,
+                                               user_id => $cuid->as_string,
+                                             } );
+                          $valid_cuid = 1;
+                        };
                         last;
-                      } elsif ($cuid->validity =~ /^[m]$/) {
-                        $marginal = { key_id => $cert->hex_id,
-                                      user_id => $cuid->as_string,
-                                    };
+                      } elsif ((!defined ($marginal)) &&
+                               $cuid->validity =~ /^[m]$/) {
+                        if (0 == grep { $_->{key_id} eq $cert->hex_id && $_->{user_id} eq $cuid->as_string ; } @mcertifiers) {
+                          $marginal = { key_id => $cert->hex_id,
+                                        user_id => $cuid->as_string,
+                                      };
+                        }
                       }
                     }
-                    push(@marginal_certifiers, $marginal)
+                    push(@mcertifiers, $marginal)
                       if (! $valid_cuid && defined $marginal);
                   }
                 }
@@ -95,70 +109,91 @@
                 $logger->log('error', "certifier ID does not fit expected pattern '%s'\n", $cert->hex_id);
               }
             }
-          }
-          # else ## do we care at all about other User IDs on this key?
-
-          # We now know the list of fully/ultimately-valid
-          # certifiers, and a separate list of marginally-valid
-          # certifiers.
-          if ($#valid_certifiers < 0) {
-            $logger->log('info', "No valid certifiers, so no marginal UI\n");
+            push(@valid_certifiers,@vcertifiers);
+            push(@marginal_certifiers,@mcertifiers);
           } else {
-            my $certifier_list = join("\n", map { sprintf("%s [%s]",
-                                                          $_->{user_id},
-                                                          $_->{key_id},
-                                                         ) } @valid_certifiers);
-            my $msg = sprintf("The matching key for \"%s\" is not %svalid.
+            ## do we care at all about other User IDs on this key?
+            if ($user_id->validity() =~ /^[fu]$/) {
+              push(@valid_other_userids, $user_id->as_string());
+              $logger->log('verbose', "Found valid alternate user ID '%s'\n", $user_id->as_string());
+            } elsif ($user_id->validity() =~ /^[m]$/) {
+              push(@marginal_other_userids, $user_id->as_string());
+              $logger->log('debug', "Found marginally-valid alternate user ID '%s'\n", $user_id->as_string());
+            }
+          }
+        }
+
+        # We now know the list of fully/ultimately-valid
+        # certifiers, and a separate list of marginally-valid
+        # certifiers.
+        if ($#valid_certifiers < 0) {
+          $logger->log('info', "No valid certifiers, so no marginal UI\n");
+        } else {
+          my $certifier_list = join("\n", map { sprintf("%s [%s]",
+                                                        $_->{user_id},
+                                                        $_->{key_id},
+                                                       ) } @valid_certifiers);
+          my $others = '';
+          if ($#valid_other_userids >= 0) {
+            $others = sprintf('
+The certificate also has the following valid (but non-matching) identities:
+
+%s
+', join("\n", @valid_other_userids));
+          }
+          # FIXME: should we do something with marginally-valid
+          # User IDs (@marginal_other_user_ids)?
+          my $msg = sprintf("The matching key for \"%s\" is not %svalid.
 
 The certificate is certified by:
 
 %s
-
+%s
 Would you like to temporarily accept this certificate for this peer?",
-                              $uid,
-                              ('m' eq $keyfpr->{val} ? 'fully ' : ''),
-                              $certifier_list,
-                             );
-            my $tip = sprintf("Peer's User ID: %s
+                            $uid,
+                            ('m' eq $keyfpr->{val} ? 'fully ' : ''),
+                            $certifier_list,
+                            $others,
+                           );
+          my $tip = sprintf("Peer's User ID: %s
 Peer's OpenPGP key fingerprint: 0x%.40s
 GnuPG calculated validity for the peer: %s",
-			      $uid,
-                              $keyfpr->{fpr}->as_hex_string,
-			      $keyfpr->{val},
-                             );
-            # FIXME: what about revoked certifications?
-            # FIXME: what about expired certifications?
-            # FIXME: what about certifications ostensibly made in the future?
+                            $uid,
+                            $keyfpr->{fpr}->as_hex_string,
+                            $keyfpr->{val},
+                           );
+          # FIXME: what about revoked certifications?
+          # FIXME: what about expired certifications?
+          # FIXME: what about certifications ostensibly made in the future?
 
-            my @clienttext;
-            foreach my $clientpid (@{$clientpids}) {
-              my $cmd = '<unknown>';
-              # FIXME: not very portable
-              my $procfh;
-              $procfh = new IO::File(sprintf('/proc/%d/cmdline', $clientpid));
-              if (defined $procfh) {
-                $cmd = <$procfh>;
-                $procfh->close;
-                # FIXME: maybe there's a better way to display this textually
-                # that doesn't conflate spaces with argument delimiters?
-                $cmd = join(' ', split(/\0/, $cmd));
-              }
-              push @clienttext, sprintf("Process %d (%s)", $clientpid, $cmd);
+          my @clienttext;
+          foreach my $clientpid (@{$clientpids}) {
+            my $cmd = '<unknown>';
+            # FIXME: not very portable
+            my $procfh;
+            $procfh = IO::File::->new(sprintf('/proc/%d/cmdline', $clientpid));
+            if (defined $procfh) {
+              $cmd = <$procfh>;
+              $procfh->close;
+              # FIXME: maybe there's a better way to display this textually
+              # that doesn't conflate spaces with argument delimiters?
+              $cmd = join(' ', split(/\0/, $cmd));
             }
-            if ($#clienttext >= 0) {
-              $tip = sprintf("%s\n\nRequested by:\n%s\n", $tip, join("\n", @clienttext));
-            }
-            $logger->log('info', "%s\n", $msg);
-            $logger->log('verbose', "%s\n", $tip);
-
-            my $resp = prompt($uid, $msg, $tip);
-            if ($resp) {
-              return $resp;
-            }
+            push @clienttext, sprintf("Process %d (%s)", $clientpid, $cmd);
           }
-          # FIXME: not doing anything with @marginal_certifiers
-          # -- that'd be yet more queries to gpg :(
+          if ($#clienttext >= 0) {
+            $tip = sprintf("%s\n\nRequested by:\n%s\n", $tip, join("\n", @clienttext));
+          }
+          $logger->log('info', "%s\n", $msg);
+          $logger->log('verbose', "%s\n", $tip);
+
+          my $resp = prompt($uid, $msg, $tip);
+          if ($resp) {
+            return $resp;
+          }
         }
+        # FIXME: not doing anything with @marginal_certifiers
+        # -- that'd be yet more queries to gpg :(
       }
     }
     return 0;
@@ -173,10 +208,10 @@ GnuPG calculated validity for the peer: %s",
     Gtk2->init();
     # create a new dialog with some buttons - one stock, one not.
     my $dialog = Gtk2::Dialog->new(sprintf('Monkeysphere validation agent [%s]', $peer),
-				    undef,
-				    [],
-				    'gtk-no' => 'cancel',
-				    'gtk-yes' => 'ok');
+                                   undef,
+                                   [],
+                                   'gtk-no' => 'cancel',
+                                   'gtk-yes' => 'ok');
 
 
 

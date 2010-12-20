@@ -41,9 +41,9 @@
   # we need the version of GnuPG::Interface that knows about pubkey_data, etc:
   use GnuPG::Interface 0.42.02;
 
-  $VERSION = '0.7';
+  $VERSION = '0.8';
 
-  my $gnupg = GnuPG::Interface->new();
+  my $gnupg = GnuPG::Interface::->new();
   $gnupg->options->quiet(1);
   $gnupg->options->batch(1);
 
@@ -62,12 +62,12 @@
   my $default_keyserver = 'hkp://pool.sks-keyservers.net';
   my $default_keyserver_policy = 'unlessvalid';
 
-  my $logger = Crypt::Monkeysphere::MSVA::Logger->new($ENV{MSVA_LOG_LEVEL});
+  my $logger = Crypt::Monkeysphere::MSVA::Logger::->new($ENV{MSVA_LOG_LEVEL});
   sub logger {
     return $logger;
   }
 
-  my $rsa_decoder = Convert::ASN1->new;
+  my $rsa_decoder = Convert::ASN1::->new();
   $rsa_decoder->prepare(q<
 
    SEQUENCE {
@@ -183,6 +183,9 @@
 
   sub parse_rfc4716body {
     my $data = shift;
+
+    return undef
+      unless defined($data);
     $data = decode_base64($data) or return undef;
 
     msvalog('debug', "key properties: %s\n", unpack('H*', $data));
@@ -214,6 +217,10 @@
   sub getpidswithsocketinode {
     my $sockid = shift;
 
+    if (! defined ($sockid)) {
+      msvalog('verbose', "No client socket ID to check.  The MSVA is probably not running as a service.\n");
+      return [];
+    }
     # this appears to be how Linux symlinks open sockets in /proc/*/fd,
     # as of at least 2.6.26:
     my $socktarget = sprintf('socket:[%d]', $sockid);
@@ -254,7 +261,7 @@
   sub get_client_info {
     my $socket = shift;
 
-    my $sock = IO::Socket->new_from_fd($socket, 'r');
+    my $sock = IO::Socket::->new_from_fd($socket, 'r');
     # check SO_PEERCRED -- if this was a TCP socket, Linux
     # might not be able to support SO_PEERCRED (even on the loopback),
     # though apparently some kernels (Solaris?) are able to.
@@ -313,7 +320,7 @@
           msvalog('verbose', "Port: %04x\nAddr: %s\n", $port, $iaddrstring);
           my $remmatch = lc(sprintf("%s:%04x", $iaddrstring, $port));
           my $infofile = '/proc/net/'.$proto;
-          my $f = new IO::File;
+          my $f = IO::File::->new();
           if ( $f->open('< '.$infofile)) {
             my @header = split(/ +/, <$f>);
             my ($localaddrix, $uidix, $inodeix);
@@ -464,7 +471,7 @@
   sub der2key {
     my $rawdata = shift;
 
-    my $cert = Crypt::X509->new(cert => $rawdata);
+    my $cert = Crypt::X509::->new(cert => $rawdata);
 
     my $key = {error => 'I do not know what happened here'};
 
@@ -524,7 +531,7 @@
     if (-f $gpgconf) {
       if (-r $gpgconf) {
         my %gpgconfig = Config::General::ParseConfig($gpgconf);
-        if ($gpgconfig{keyserver} =~ /^(((hkps?|finger|ldap):\/\/)?$RE{net}{domain})$/) {
+        if ($gpgconfig{keyserver} =~ /^(((hkps?|hkpms|finger|ldap):\/\/)?$RE{net}{domain})$/) {
           msvalog('debug', "Using keyserver %s from the GnuPG configuration file (%s)\n", $1, $gpgconf);
           return $1;
         } else {
@@ -544,14 +551,14 @@
   sub fetch_uid_from_keyserver {
     my $uid = shift;
 
-    my $cmd = IO::Handle->new();
-    my $out = IO::Handle->new();
-    my $nul = IO::File->new("< /dev/null");
+    my $cmd = IO::Handle::->new();
+    my $out = IO::Handle::->new();
+    my $nul = IO::File::->new("< /dev/null");
 
     my $ks = get_keyserver();
     msvalog('debug', "start ks query to %s for UserID: %s\n", $ks, $uid);
     my $pid = $gnupg->wrap_call
-      ( handles => GnuPG::Handles->new( command => $cmd, stdout => $out, stderr => $nul ),
+      ( handles => GnuPG::Handles::->new( command => $cmd, stdout => $out, stderr => $nul ),
         command_args => [ '='.$uid ],
         commands => [ '--keyserver',
                       $ks,
@@ -624,7 +631,7 @@
         $ret->{message} = sprintf("Invalid client peer name string: %s", $data->{peer}->{name});
         return $status, $ret;
       }
-    } elsif ($data->{peer}->{name} =~ /^($RE{net}{domain})$/) {
+    } elsif ($data->{peer}->{name} =~ /^($RE{net}{domain}(:[[:digit:]]+)?)$/) {
       $data->{peer}->{name} = $1;
     } else {
       msvalog('error', "invalid peer name string: %s\n", $data->{peer}->{name});
@@ -659,8 +666,8 @@
     }
 
     # make sure that the returned integers are Math::BigInts:
-    $key->{exponent} = Math::BigInt->new($key->{exponent}) unless (ref($key->{exponent}));
-    $key->{modulus} = Math::BigInt->new($key->{modulus}) unless (ref($key->{modulus}));
+    $key->{exponent} = Math::BigInt::->new($key->{exponent}) unless (ref($key->{exponent}));
+    $key->{modulus} = Math::BigInt::->new($key->{modulus}) unless (ref($key->{modulus}));
     msvalog('debug', "pubkey info:\nmodulus: %s\nexponent: %s\n",
             $key->{modulus}->as_hex(),
             $key->{exponent}->as_hex(),
@@ -835,7 +842,7 @@
       $server->server_close();
     }
     $self->port($port);
-    $self->{updatemonitor} = Crypt::Monkeysphere::MSVA::Monitor->new($logger);
+    $self->{updatemonitor} = Crypt::Monkeysphere::MSVA::Monitor::->new($logger);
   }
 
   sub spawn_master_subproc {
