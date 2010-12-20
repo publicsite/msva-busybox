@@ -49,7 +49,7 @@ use warnings;
               $self->{actually_check} = 1;
             } elsif ($opt =~ /^http-proxy=(.*)/) {
               my $hp = $1;
-              if ($hp =~ /^(socks|http|https):\/\/($RE{net}{domain}|$RE{net}{IPv4}):([[:digit:]]+)$/) {
+              if ($hp =~ /^(socks|http|https):\/\/($RE{net}{domain}|$RE{net}{IPv4}):([[:digit:]]+)\/?$/) {
                 if ('socks' eq $1) {
                   if ( ! Module::Load::Conditional::check_install(module => 'LWP::Protocol::socks')) {
                     $self->{logger}->log('error', "Requesting a socks proxy for hkpms, but LWP::Protocol::socks is not installed.\nThis will likely fail.\n");
