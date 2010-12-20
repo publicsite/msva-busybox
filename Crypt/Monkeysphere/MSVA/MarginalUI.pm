@@ -85,15 +85,20 @@
                       # grab the first full or ultimate user ID on
                       # this certifier's key:
                       if ($cuid->validity =~ /^[fu]$/) {
-                        push(@vcertifiers, { key_id => $cert->hex_id,
-                                                  user_id => $cuid->as_string,
-                                                } );
-                        $valid_cuid = 1;
+                        if (0 == grep { $_->{key_id} eq $cert->hex_id && $_->{user_id} eq $cuid->as_string ; } @vcertifiers) {
+                          push(@vcertifiers, { key_id => $cert->hex_id,
+                                               user_id => $cuid->as_string,
+                                             } );
+                          $valid_cuid = 1;
+                        };
                         last;
-                      } elsif ($cuid->validity =~ /^[m]$/) {
-                        $marginal = { key_id => $cert->hex_id,
-                                      user_id => $cuid->as_string,
-                                    };
+                      } elsif ((!defined ($marginal)) &&
+                               $cuid->validity =~ /^[m]$/) {
+                        if (0 == grep { $_->{key_id} eq $cert->hex_id && $_->{user_id} eq $cuid->as_string ; } @mcertifiers) {
+                          $marginal = { key_id => $cert->hex_id,
+                                        user_id => $cuid->as_string,
+                                      };
+                        }
                       }
                     }
                     push(@mcertifiers, $marginal)
