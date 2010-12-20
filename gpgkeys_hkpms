@@ -19,6 +19,8 @@ use warnings;
   use POSIX;
   use Crypt::Monkeysphere::MSVA::Logger;
   use Crypt::Monkeysphere::MSVA::Client;
+  use Regexp::Common qw /net/;
+  use Module::Load::Conditional;
 
   sub parse_input {
     my $self = shift;
@@ -45,6 +47,18 @@ use warnings;
               $self->{actually_check} = 0;
             } elsif ($opt eq 'check-cert') {
               $self->{actually_check} = 1;
+            } elsif ($opt =~ /^http-proxy=(.*)/) {
+              my $hp = $1;
+              if ($hp =~ /^(socks|http|https):\/\/($RE{net}{domain}|$RE{net}{IPv4}):([[:digit:]]+)$/) {
+                if ('socks' eq $1) {
+                  if ( ! Module::Load::Conditional::check_install(module => 'LWP::Protocol::socks')) {
+                    $self->{logger}->log('error', "Requesting a socks proxy for hkpms, but LWP::Protocol::socks is not installed.\nThis will likely fail.\n");
+                  }
+                }
+                $self->{proxy} = sprintf('%s://%s:%s', $1, $2, $3);
+              } else {
+                $self->{logger}->log('error', "Failed to make sense of this http-proxy address: '%s'; ignoring.\n", $hp);
+              }
             } else {
               $self->{logger}->log('error', "Received '%s' as an option, but gpgkeys_hkpms does not implement it. Ignoring...\n", $opt);
             }
@@ -54,7 +68,6 @@ use warnings;
             # include-revoked
             # include-disabled
             # ca-cert-file
-            # http-proxy
           }
         }
       } else {
@@ -141,6 +154,14 @@ use warnings;
                                      );
 
     my $ua = LWP::UserAgent::->new();
+
+    if (exists($self->{proxy})) {
+      $self->{logger}->log('verbose', "Using http-proxy: %s\n", $self->{proxy});
+      $ua->proxy([qw(http https)] => $self->{proxy});
+    } else {
+      # if no proxy was explicitly set, use the environment:
+      $ua->env_proxy();
+    }
 
     printf("VERSION 1\nPROGRAM %s gpgkeys_hkpms msva-perl/%s\n",
            $self->{config}->{program},  # this is kind of cheating :/

@@ -8,8 +8,10 @@ msva-perl (0.8) upstream;
   * Do not report self-sigs as other certifiers (but report valid,
     non-matching identities independently) (closes MS # 2569)
   * List certifiers only once (closes MS # 2573)
+  * Enable the use of --keyserver-options http-proxy for gpgkeys_hkpms
+    (includes support for socks proxies) (closes MS # 2677)
 
- -- Daniel Kahn Gillmor <dkg@fifthhorseman.net>  Mon, 20 Dec 2010 02:35:54 -0500
+ -- Daniel Kahn Gillmor <dkg@fifthhorseman.net>  Mon, 20 Dec 2010 04:04:15 -0500
 
 msva-perl (0.7) upstream;
 
