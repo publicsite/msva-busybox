@@ -5,15 +5,18 @@
 # © 2010 Daniel Kahn Gillmor <dkg@fifthhorseman.net>
 # Licensed under GPL v3 or later
 
-VERSION=`dpkg-parsechangelog -lChangelog | grep ^Version: | cut -f2 -d\ `
+VERSION := $(shell dpkg-parsechangelog -lChangelog | grep ^Version: | cut -f2 -d\ )
 DEBIAN_VERSION=`dpkg-parsechangelog | grep ^Version: | cut -f2 -d\ `
 
 MANPAGES=msva-perl.1 msva-query-agent.1
 
-all: $(MANPAGES)
+all: $(MANPAGES) Crypt/Monkeysphere/MSVA.pm
 
 %.1: %
 	pod2man $< $@
+
+Crypt/Monkeysphere/MSVA.pm: Changelog
+	sed -i "s/^  \\\$$VERSION = '[a-z0-9.~A-Z]*';$$/  \$$VERSION = '$(VERSION)';/" $@
 
 clean: 
 	rm -f $(MANPAGES)
