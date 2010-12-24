@@ -664,7 +664,7 @@
       } else {
         msvalog('error', "invalid client peer name string: %s\n", $data->{peer}->{name});
         $ret->{message} = sprintf("Invalid client peer name string: %s", $data->{peer}->{name});
-        return $status, $ret;
+        return $status,$ret;
       }
     } elsif ($data->{peer}->{name} =~ /^($RE{net}{domain}(:[[:digit:]]+)?)$/) {
       $data->{peer}->{name} = $1;
@@ -680,7 +680,7 @@
     my $uid = $prefix.$data->{peer}->{name};
     msvalog('verbose', "user ID: %s\n", $uid);
 
-    # check pkc type
+    # extract key from PKC
     my $key;
     $key = pkcextractkey($data);
     if (exists $key->{error}) {
@@ -688,8 +688,12 @@
       return $status,$ret;
     }
 
+    # setup variables
     $ret->{message} = sprintf('Failed to validate "%s" through the OpenPGP Web of Trust.', $uid);
     my $lastloop = 0;
+    my $foundvalid = 0;
+
+    # determine keyserver policy
     my $kspolicy;
     if (defined $data->{keyserverpolicy} &&
 	$data->{keyserverpolicy} =~ /^(always|never|unlessvalid)$/) {
@@ -707,7 +711,6 @@
     } elsif ($kspolicy eq 'never') {
       $lastloop = 1;
     }
-    my $foundvalid = 0;
 
     # fingerprints of keys that are not fully-valid for this User ID, but match
     # the key from the queried certificate:
@@ -764,7 +767,7 @@
       }
     }
 
-    return $status, $ret;
+    return $status,$ret;
   }
 
   sub pre_loop_hook {
