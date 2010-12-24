@@ -137,81 +137,6 @@
                      };
   }
 
-  sub opensshpubkey2key {
-    my $data = shift;
-    # FIXME: do we care that the label matches the type of key?
-    my ($label, $prop) = split(/ +/, $data);
-
-    my $out = parse_rfc4716body($prop);
-
-    return $out;
-  }
-
-  sub rfc47162key {
-    my $data = shift;
-
-    my @goodlines;
-    my $continuation = '';
-    my $state = 'outside';
-    foreach my $line (split(/\n/, $data)) {
-      last if ($state eq 'body' && $line eq '---- END SSH2 PUBLIC KEY ----');
-      if ($state eq 'outside' && $line eq '---- BEGIN SSH2 PUBLIC KEY ----') {
-        $state = 'header';
-        next;
-      }
-      if ($state eq 'header') {
-        $line = $continuation.$line;
-        $continuation = '';
-        if ($line =~ /^(.*)\\$/) {
-          $continuation = $1;
-          next;
-        }
-        if (! ($line =~ /:/)) {
-          $state = 'body';
-        }
-      }
-      push(@goodlines, $line) if ($state eq 'body');
-    }
-
-    msvalog('debug', "Found %d lines of RFC4716 body:\n%s\n",
-            scalar(@goodlines),
-            join("\n", @goodlines));
-    my $out = parse_rfc4716body(join('', @goodlines));
-
-    return $out;
-  }
-
-  sub parse_rfc4716body {
-    my $data = shift;
-
-    return undef
-      unless defined($data);
-    $data = decode_base64($data) or return undef;
-
-    msvalog('debug', "key properties: %s\n", unpack('H*', $data));
-    my $out = [ ];
-    while (length($data) > 4) {
-      my $size = unpack('N', substr($data, 0, 4));
-      msvalog('debug', "size: 0x%08x\n", $size);
-      return undef if (length($data) < $size + 4);
-      push(@{$out}, substr($data, 4, $size));
-      $data = substr($data, 4 + $size);
-    }
-
-    if ($out->[0] ne "ssh-rsa") {
-      return {error => 'Not an RSA key'};
-    }
-
-    if (scalar(@{$out}) != 3) {
-      return {error => 'Does not contain the right number of bigints for RSA'};
-    }
-
-    return { exponent => Math::BigInt->from_hex('0x'.unpack('H*', $out->[1])),
-             modulus => Math::BigInt->from_hex('0x'.unpack('H*', $out->[2])),
-           } ;
-  }
-
-
   # return an arrayref of processes which we can detect that have the
   # given socket open (the socket is specified with its inode)
   sub getpidswithsocketinode {
@@ -450,54 +375,6 @@
     return 0;
   }
 
-  sub pem2der {
-    my $pem = shift;
-    my @lines = split(/\n/, $pem);
-    my @goodlines = ();
-    my $ready = 0;
-    foreach my $line (@lines) {
-      if ($line eq '-----END CERTIFICATE-----') {
-        last;
-      } elsif ($ready) {
-        push @goodlines, $line;
-      } elsif ($line eq '-----BEGIN CERTIFICATE-----') {
-        $ready = 1;
-      }
-    }
-    msvalog('debug', "%d lines of base64:\n%s\n", $#goodlines + 1, join("\n", @goodlines));
-    return decode_base64(join('', @goodlines));
-  }
-
-  sub der2key {
-    my $rawdata = shift;
-
-    my $cert = Crypt::X509::->new(cert => $rawdata);
-
-    my $key = {error => 'I do not know what happened here'};
-
-    if ($cert->error) {
-      $key->{error} = sprintf("Error decoding X.509 certificate: %s", $cert->error);
-    } else {
-      msvalog('verbose', "cert subject: %s\n", $cert->subject_cn());
-      msvalog('verbose', "cert issuer: %s\n", $cert->issuer_cn());
-      msvalog('verbose', "cert pubkey algo: %s\n", $cert->PubKeyAlg());
-      msvalog('verbose', "cert pubkey: %s\n", unpack('H*', $cert->pubkey()));
-
-      if ($cert->PubKeyAlg() ne 'RSA') {
-        $key->{error} = sprintf('public key was algo "%s" (OID %s).  MSVA.pl only supports RSA',
-                                $cert->PubKeyAlg(), $cert->pubkey_algorithm);
-      } else {
-        msvalog('debug', "decoding ASN.1 pubkey\n");
-        $key = $rsa_decoder->decode($cert->pubkey());
-        if (! defined $key) {
-          msvalog('verbose', "failed to decode %s\n", unpack('H*', $cert->pubkey()));
-          $key = {error => 'failed to decode the public key'};
-        }
-      }
-    }
-    return $key;
-  }
-
   sub get_keyserver_policy {
     if (exists $ENV{MSVA_KEYSERVER_POLICY} and $ENV{MSVA_KEYSERVER_POLICY} ne '') {
       if ($ENV{MSVA_KEYSERVER_POLICY} =~ /^(always|never|unlessvalid)$/) {
@@ -610,6 +487,129 @@
     return $key;
   }
 
+  sub der2key {
+    my $rawdata = shift;
+
+    my $cert = Crypt::X509::->new(cert => $rawdata);
+
+    my $key = {error => 'I do not know what happened here'};
+
+    if ($cert->error) {
+      $key->{error} = sprintf("Error decoding X.509 certificate: %s", $cert->error);
+    } else {
+      msvalog('verbose', "cert subject: %s\n", $cert->subject_cn());
+      msvalog('verbose', "cert issuer: %s\n", $cert->issuer_cn());
+      msvalog('verbose', "cert pubkey algo: %s\n", $cert->PubKeyAlg());
+      msvalog('verbose', "cert pubkey: %s\n", unpack('H*', $cert->pubkey()));
+
+      if ($cert->PubKeyAlg() ne 'RSA') {
+        $key->{error} = sprintf('public key was algo "%s" (OID %s).  MSVA.pl only supports RSA',
+                                $cert->PubKeyAlg(), $cert->pubkey_algorithm);
+      } else {
+        msvalog('debug', "decoding ASN.1 pubkey\n");
+        $key = $rsa_decoder->decode($cert->pubkey());
+        if (! defined $key) {
+          msvalog('verbose', "failed to decode %s\n", unpack('H*', $cert->pubkey()));
+          $key = {error => 'failed to decode the public key'};
+        }
+      }
+    }
+    return $key;
+  }
+
+  sub pem2der {
+    my $pem = shift;
+    my @lines = split(/\n/, $pem);
+    my @goodlines = ();
+    my $ready = 0;
+    foreach my $line (@lines) {
+      if ($line eq '-----END CERTIFICATE-----') {
+        last;
+      } elsif ($ready) {
+        push @goodlines, $line;
+      } elsif ($line eq '-----BEGIN CERTIFICATE-----') {
+        $ready = 1;
+      }
+    }
+    msvalog('debug', "%d lines of base64:\n%s\n", $#goodlines + 1, join("\n", @goodlines));
+    return decode_base64(join('', @goodlines));
+  }
+
+  sub opensshpubkey2key {
+    my $data = shift;
+    # FIXME: do we care that the label matches the type of key?
+    my ($label, $prop) = split(/ +/, $data);
+
+    my $out = parse_rfc4716body($prop);
+
+    return $out;
+  }
+
+  sub rfc47162key {
+    my $data = shift;
+
+    my @goodlines;
+    my $continuation = '';
+    my $state = 'outside';
+    foreach my $line (split(/\n/, $data)) {
+      last if ($state eq 'body' && $line eq '---- END SSH2 PUBLIC KEY ----');
+      if ($state eq 'outside' && $line eq '---- BEGIN SSH2 PUBLIC KEY ----') {
+        $state = 'header';
+        next;
+      }
+      if ($state eq 'header') {
+        $line = $continuation.$line;
+        $continuation = '';
+        if ($line =~ /^(.*)\\$/) {
+          $continuation = $1;
+          next;
+        }
+        if (! ($line =~ /:/)) {
+          $state = 'body';
+        }
+      }
+      push(@goodlines, $line) if ($state eq 'body');
+    }
+
+    msvalog('debug', "Found %d lines of RFC4716 body:\n%s\n",
+            scalar(@goodlines),
+            join("\n", @goodlines));
+    my $out = parse_rfc4716body(join('', @goodlines));
+
+    return $out;
+  }
+
+  sub parse_rfc4716body {
+    my $data = shift;
+
+    return undef
+      unless defined($data);
+    $data = decode_base64($data) or return undef;
+
+    msvalog('debug', "key properties: %s\n", unpack('H*', $data));
+    my $out = [ ];
+    while (length($data) > 4) {
+      my $size = unpack('N', substr($data, 0, 4));
+      msvalog('debug', "size: 0x%08x\n", $size);
+      return undef if (length($data) < $size + 4);
+      push(@{$out}, substr($data, 4, $size));
+      $data = substr($data, 4 + $size);
+    }
+
+    if ($out->[0] ne "ssh-rsa") {
+      return {error => 'Not an RSA key'};
+    }
+
+    if (scalar(@{$out}) != 3) {
+      return {error => 'Does not contain the right number of bigints for RSA'};
+    }
+
+    return { exponent => Math::BigInt->from_hex('0x'.unpack('H*', $out->[1])),
+             modulus => Math::BigInt->from_hex('0x'.unpack('H*', $out->[2])),
+           } ;
+  }
+
+## PKC KEY EXTRACTION ############################
 ##################################################
 
   sub reviewcert {
