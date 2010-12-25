@@ -712,7 +712,7 @@
 	msvalog('verbose', "OpenPGP v4 fingerprint: %s\n",$fpr);
       } else {
 	msvalog('error', "invalid OpenPGP v4 fingerprint: %s\n",$data->{pkc}->{data});
-	$ret->{message} = sprintf("Invalid OpengPGP v4 fingerprint.");
+	$ret->{message} = sprintf("Invalid OpenPGP v4 fingerprint.");
 	return $status,$ret;
       }
       $gpgquery = '0x'.$fpr;
