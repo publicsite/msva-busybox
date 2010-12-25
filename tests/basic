@@ -79,7 +79,8 @@ done
 # and the same for the clients A and B
 for name in a b; do
     uid="${name} <${name}@example.net>"
-    PEM2OPENPGP_USAGE_FLAGS=authenticate pem2openpgp "$uid" < "${WORKDIR}/sec/${name}.key" | gpg --import
+    # make user keys 'a' and 's' capable
+    PEM2OPENPGP_USAGE_FLAGS=authenticate,sign pem2openpgp "$uid" < "${WORKDIR}/sec/${name}.key" | gpg --import
     # export fingerprint for openpgp4fpr
     gpg --with-colons --fingerprint "=${uid}" | grep '^fpr:' | cut -d: -f10 > "${WORKDIR}/pkc/${name}.openpgp4fpr"
 done
@@ -112,6 +113,8 @@ runtests() {
     # X should now validate as X
         "${srcdir}"/test-msva msva-perl "${srcdir}"/test-msva msva-query-agent https x.example.net "${ctype}" < "${WORKDIR}/pkc/x.${ctype}"
         "${srcdir}"/test-msva msva-perl "${srcdir}"/test-msva msva-query-agent https 'a <a@example.net>' "${ctype}" client < "${WORKDIR}/pkc/a.${ctype}"
+	# also test "email" context
+        "${srcdir}"/test-msva msva-perl "${srcdir}"/test-msva msva-query-agent email 'a <a@example.net>' "${ctype}" < "${WORKDIR}/pkc/a.${ctype}"
         
     # but X should not validate as Y or Z:
         for name in x y z; do
