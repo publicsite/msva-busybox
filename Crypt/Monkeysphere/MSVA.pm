@@ -645,7 +645,7 @@
                };
 
     # check context string
-    if ($data->{context} =~ /^(https|ssh|smtp|ike|postgresql|imaps|imap|submission)$/) {
+    if ($data->{context} =~ /^(https|ssh|smtp|ike|postgresql|imaps|imap|submission|email)$/) {
 	$data->{context} = $1;
     } else {
 	msvalog('error', "invalid context: %s\n", $data->{context});
@@ -671,11 +671,12 @@
     }
 
     my $prefix = $data->{context}.'://';
-    if (defined $data->{peer}->{type} &&
+    if ($data->{context} eq 'email' ||
+       (defined $data->{peer}->{type} &&
         $data->{peer}->{type} eq 'client' &&
         # ike and smtp clients are effectively other servers, so we'll
         # exclude them:
-        $data->{context} !~ /^(ike|smtp)$/) {
+        $data->{context} !~ /^(ike|smtp)$/)) {
       $prefix = '';
       # clients can have any one-line User ID without NULL characters
       # and leading or trailing whitespace
@@ -774,18 +775,33 @@
 	    $primarymatch = 1;
 	  }
 	  if ($primarymatch) {
-	    if ($subkey->usage_flags =~ /a/) {
-	      msvalog('verbose', "key matches, and 0x%s is authentication-capable\n", $subkey->hex_id);
+	    my $iscapable = 0;
+	    msvalog('verbose', "key 0x%s matches...\n",$subkey->hex_id);
+	    if ($data->{context} eq 'email') {
+	      if ($subkey->usage_flags =~ /s/) {
+		$iscapable = 1;
+		msvalog('verbose', "...and is signing-capable...\n");
+	      } else {
+		msvalog('verbose', "...but is not signing-capable.\n");
+	      }
+	    } else {
+	      if ($subkey->usage_flags =~ /a/) {
+		$iscapable = 1;
+		msvalog('verbose', "...and is authentication-capable...\n");
+	      } else {
+		msvalog('verbose', "...but is not authentication-capable.\n");
+	      }
+	    }
+	    if ($iscapable) {
 	      if ($validity =~ /^[fu]$/) {
 		$foundvalid = 1;
-		msvalog('verbose', "...and it's fully valid!\n");
+		msvalog('verbose', "...and is fully valid!\n");
 		$ret->{valid} = JSON::true;
 		$ret->{message} = sprintf('Successfully validated "%s" through the OpenPGP Web of Trust.', $uid);
 	      } else {
+		msvalog('verbose', "...but is not fully valid.\n");
 		push(@subvalid_key_fprs, { fpr => $subkey->fingerprint, val => $validity }) if $lastloop;
 	      }
-	    } else {
-	      msvalog('verbose', "key matches, but 0x%s is not authentication-capable\n", $subkey->hex_id);
 	    }
 	  }
 	}
