@@ -1,3 +1,10 @@
+msva-perl (0.9~pre) upstream;
+
+  * Add "email" context (checks for 's' capability) (closes MS #2688)
+  * Add "openpgp4fpr" pkc type for providing OpenPGP v4 fingerprint
+
+ -- Jameson Rollins <jrollins@finestructure.net>  Sat, 25 Dec 2010 12:05:04 -0500
+
 msva-perl (0.8) upstream;
 
   * Minor bugfix release!
