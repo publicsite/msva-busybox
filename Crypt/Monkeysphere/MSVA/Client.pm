@@ -91,35 +91,12 @@
     $self->log('debug', "pkctype: %s\n", $pkctype);
 
     my $transformed_data;
-
     if ($pkctype eq 'x509der') {
-      if ($self->{logger}->is_logging_at('verbose')) {
-        if (Module::Load::Conditional::can_load('modules' => { 'Crypt::X509' => undef })) {
-          require Crypt::X509;
-          my $cert = Crypt::X509->new(cert => $pkcdata);
-          if ($cert->error) {
-            $self->log('error', "failed to parse this X.509 cert before sending it to the agent\n");
-          } else {
-            $self->log('info', "x509der certificate loaded.\n");
-            $self->log('verbose', "cert subject: %s\n", $cert->subject_cn());
-            $self->log('verbose', "cert issuer: %s\n", $cert->issuer_cn());
-            $self->log('verbose', "cert pubkey algo: %s\n", $cert->PubKeyAlg());
-            $self->log('verbose', "cert pubkey: %s\n", unpack('H*', $cert->pubkey()));
-          }
-        } else {
-          $self->log('verbose', "X.509 cert going to agent but we cannot inspect it without Crypt::X509\n");
-        }
-      }
-      # remap raw pkc data into numeric array
+      # remap raw der data into numeric array
       $transformed_data = [map(ord, split(//,$pkcdata))];
-    } elsif ($pkctype eq 'x509pem' ||
-             $pkctype eq 'opensshpubkey' ||
-             $pkctype eq 'rfc4716'
-            ) {
-      $transformed_data = $pkcdata;
     } else {
-      $self->log('error', "unknown pkc type '%s'.\n", $pkctype);
-    };
+      $transformed_data = $pkcdata;
+    }
 
     my $ret = {
                context => $context,
