@@ -798,6 +798,7 @@
 		msvalog('verbose', "...and is fully valid!\n");
 		$ret->{valid} = JSON::true;
 		$ret->{message} = sprintf('Successfully validated "%s" through the OpenPGP Web of Trust.', $uid);
+		last;
 	      } else {
 		msvalog('verbose', "...but is not fully valid.\n");
 		push(@subvalid_key_fprs, { fpr => $subkey->fingerprint, val => $validity }) if $lastloop;
@@ -805,8 +806,9 @@
 	    }
 	  }
 	}
+	last if ($foundvalid);
       }
-      if ($lastloop) {
+      if ($lastloop || $foundvalid) {
 	last;
       } else {
 	if (!$foundvalid) {
