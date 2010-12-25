@@ -25,7 +25,7 @@ srcdir=$(dirname $0)/..
 
 REPS=5
 
-CERTTYPES="x509pem x509der opensshpubkey rfc4716"
+CERTTYPES="x509pem x509der opensshpubkey rfc4716 openpgp4fpr"
 
 printf "testing %d reps of simple/quick true/false:\n" "$REPS"
 for n in $(seq 1 "$REPS") ; do
@@ -71,11 +71,17 @@ done
 
 # translate X and Y's keys into OpenPGP cert
 for name in x y; do
-    PEM2OPENPGP_USAGE_FLAGS=authenticate pem2openpgp "https://${name}.example.net" < "${WORKDIR}/sec/${name}.key" | gpg --import
+    uid="https://${name}.example.net"
+    PEM2OPENPGP_USAGE_FLAGS=authenticate pem2openpgp "$uid" < "${WORKDIR}/sec/${name}.key" | gpg --import
+    # export fingerprint for openpgp4fpr
+    gpg --with-colons --fingerprint "=${uid}" | grep '^fpr:' | cut -d: -f10 > "${WORKDIR}/pkc/${name}.openpgp4fpr"
 done
 # and the same for the clients A and B
 for name in a b; do
-    PEM2OPENPGP_USAGE_FLAGS=authenticate pem2openpgp "${name} <${name}@example.net>" < "${WORKDIR}/sec/${name}.key" | gpg --import
+    uid="${name} <${name}@example.net>"
+    PEM2OPENPGP_USAGE_FLAGS=authenticate pem2openpgp "$uid" < "${WORKDIR}/sec/${name}.key" | gpg --import
+    # export fingerprint for openpgp4fpr
+    gpg --with-colons --fingerprint "=${uid}" | grep '^fpr:' | cut -d: -f10 > "${WORKDIR}/pkc/${name}.openpgp4fpr"
 done
 
 runtests() {
