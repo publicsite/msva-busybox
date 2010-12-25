@@ -425,6 +425,26 @@
     return $default_keyserver;
   }
 
+  sub fetch_fpr_from_keyserver {
+    my $fpr = shift;
+
+    my $cmd = IO::Handle::->new();
+    my $nul = IO::File::->new("< /dev/null");
+
+    my $ks = get_keyserver();
+    msvalog('debug', "start ks query to %s for fingerprint: %s\n", $ks, $fpr);
+    my $pid = $gnupg->wrap_call
+      ( handles => GnuPG::Handles::->new( command => $cmd, stdout => $nul, stderr => $nul ),
+	command_args => [ '0x'.$fpr ],
+	commands => [ '--keyserver',
+		      $ks,
+		      qw( --no-tty --recv-keys ) ]
+					);
+    # FIXME: can we do something to avoid hanging forever?
+    waitpid($pid, 0);
+    msvalog('debug', "ks query returns %d\n", POSIX::WEXITSTATUS($?));
+  }
+
   sub fetch_uid_from_keyserver {
     my $uid = shift;
 
@@ -680,12 +700,29 @@
     my $uid = $prefix.$data->{peer}->{name};
     msvalog('verbose', "user ID: %s\n", $uid);
 
-    # extract key from PKC
+    # extract key or openpgp fingerprint from PKC
+    my $fpr;
     my $key;
-    $key = pkcextractkey($data);
-    if (exists $key->{error}) {
-      $ret->{message} = $key->{error};
-      return $status,$ret;
+    my $gpgquery;
+    if (lc($data->{pkc}->{type}) eq 'openpgp4fpr') {
+      if ($data->{pkc}->{data} =~ /^([[:xdigit:]]+)$/) {
+	$data->{pkc}->{data} = $1;
+	$fpr = $data->{pkc}->{data};
+	msvalog('verbose', "OpenPGP v4 fingerprint: %s\n",$fpr);
+      } else {
+	msvalog('error', "invalid OpenPGP v4 fingerprint: %s\n",$data->{pkc}->{data});
+	$ret->{message} = sprintf("Invalid OpengPGP v4 fingerprint.");
+	return $status,$ret;
+      }
+      $gpgquery = '0x'.$fpr;
+    } else {
+      # extract key from PKC
+      $key = pkcextractkey($data);
+      if (exists $key->{error}) {
+	$ret->{message} = $key->{error};
+	return $status,$ret;
+      }
+      $gpgquery = '='.$uid;
     }
 
     # setup variables
@@ -706,7 +743,11 @@
     # needed because $gnupg spawns child processes
     $ENV{PATH} = '/usr/local/bin:/usr/bin:/bin';
     if ($kspolicy eq 'always') {
-      fetch_uid_from_keyserver($uid);
+      if (defined $fpr) {
+	fetch_fpr_from_keyserver($fpr);
+      } else {
+	fetch_uid_from_keyserver($uid);
+      }
       $lastloop = 1;
     } elsif ($kspolicy eq 'never') {
       $lastloop = 1;
@@ -717,7 +758,7 @@
     my @subvalid_key_fprs;
 
     while (1) {
-      foreach my $gpgkey ($gnupg->get_public_keys('='.$uid)) {
+      foreach my $gpgkey ($gnupg->get_public_keys($gpgquery)) {
 	my $validity = '-';
 	foreach my $tryuid ($gpgkey->user_ids) {
 	  if ($tryuid->as_string eq $uid) {
@@ -726,13 +767,18 @@
 	}
 	# treat primary keys just like subkeys:
 	foreach my $subkey ($gpgkey, @{$gpgkey->subkeys}) {
-	  my $primarymatch = keycomp($key, $subkey);
+	  my $primarymatch;
+	  if (defined $key) {
+	    $primarymatch = keycomp($key, $subkey);
+	  } else {
+	    $primarymatch = 1;
+	  }
 	  if ($primarymatch) {
 	    if ($subkey->usage_flags =~ /a/) {
 	      msvalog('verbose', "key matches, and 0x%s is authentication-capable\n", $subkey->hex_id);
 	      if ($validity =~ /^[fu]$/) {
 		$foundvalid = 1;
-		msvalog('verbose', "...and it matches!\n");
+		msvalog('verbose', "...and it's fully valid!\n");
 		$ret->{valid} = JSON::true;
 		$ret->{message} = sprintf('Successfully validated "%s" through the OpenPGP Web of Trust.', $uid);
 	      } else {
@@ -747,7 +793,13 @@
       if ($lastloop) {
 	last;
       } else {
-	fetch_uid_from_keyserver($uid) if (!$foundvalid);
+	if (!$foundvalid) {
+	  if (defined $fpr) {
+	    fetch_fpr_from_keyserver($fpr);
+	  } else {
+	    fetch_uid_from_keyserver($uid);
+	  }
+	}
 	$lastloop = 1;
       }
     }
