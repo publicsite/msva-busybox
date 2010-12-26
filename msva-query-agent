@@ -51,7 +51,8 @@ $client->log('info', "status: %s\n", $status);
 if (defined $ret) {
   $client->log('info', "valid: %s\n", $ret->{valid});
   $client->log('info', "server: %s\n", $ret->{server});
-  printf("%s\n", $ret->{message});
+  printf("%s", $ret->{message});
+  printf("\n") if (-t STDOUT);
   exit 0
     if ($ret->{valid});
 }
