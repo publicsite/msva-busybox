@@ -36,6 +36,20 @@
     $self->{logger}->log(@_);
   }
 
+  sub agent_info {
+    my $self = shift;
+    my $requesturl = $self->{socket} . '/';
+    my $request = HTTP::Request->new('GET', $requesturl);
+    $self->log('debug', "Contacting MSVA at %s\n", $requesturl);
+    my $response = $self->{ua}->request($request);
+    my $status = $response->status_line;
+    my $ret;
+    if ($status eq '200 OK') {
+      $ret = from_json($response->content);
+    }
+    return $status, $ret;
+  }
+
   sub query_agent {
     my $self = shift;
     my $context = shift;

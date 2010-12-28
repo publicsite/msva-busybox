@@ -23,10 +23,25 @@ use Crypt::Monkeysphere::MSVA::Client;
 
 my $context = shift;
 if ($context eq '--help') {
-    printf STDERR "Usage: msva-query-agent CONTEXT PEER PKC_TYPE [PEER_TYPE] <PKC_DATA\n";
-    printf STDERR "       msva-query-agent CONTEXT PEER PKC_TYPE PEER_TYPE PKC_DATA\n";
+  printf STDERR "Usage: msva-query-agent CONTEXT PEER PKC_TYPE [PEER_TYPE] <PKC_DATA\n";
+  printf STDERR "       msva-query-agent CONTEXT PEER PKC_TYPE PEER_TYPE PKC_DATA\n";
+  printf STDERR "       msva-query-agent --version\n";
+  exit 0;
+} elsif ($context eq '--version') {
+  my $client = Crypt::Monkeysphere::MSVA::Client->new(
+						      socket => $ENV{MONKEYSPHERE_VALIDATION_AGENT_SOCKET},
+						      log_level => $ENV{MSVA_LOG_LEVEL},
+						     );
+  my ($status,$ret) = $client->agent_info();
+  $client->log('verbose', "status: %s\n", $status);
+  if (defined $ret) {
+    printf("%s", $ret->{server});
+    printf("\n") if (-t STDOUT);
     exit 0;
+  }
+  exit 1;
 }
+
 my $peer = shift;
 my $pkctype = shift;
 my $peertype = shift;
@@ -47,7 +62,7 @@ my $client = Crypt::Monkeysphere::MSVA::Client->new(
 
 my ($status,$ret) = $client->query_agent($context,$peer,$peertype,$pkctype,$pkcdata);
 
-$client->log('info', "status: %s\n", $status);
+$client->log('verbose', "status: %s\n", $status);
 if (defined $ret) {
   $client->log('info', "valid: %s\n", $ret->{valid});
   $client->log('info', "server: %s\n", $ret->{server});
@@ -69,6 +84,8 @@ msva-query-agent - query a Monkeysphere Validation Agent
 msva-query-agent CONTEXT PEER PKC_TYPE [PEER_TYPE] < /path/to/public_key_carrier
 
 msva-query-agent CONTEXT PEER PKC_TYPE PEER_TYPE PKC_DATA
+
+msva-query-agent --version
 
 =head1 ABSTRACT
 
