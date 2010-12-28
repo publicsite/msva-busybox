@@ -782,14 +782,14 @@
 		$iscapable = 1;
 		msvalog('verbose', "...and is signing-capable...\n");
 	      } else {
-		msvalog('verbose', "...but is not signing-capable.\n");
+		msvalog('verbose', "...but is not signing-capable (%s).\n",$subkey->usage_flags);
 	      }
 	    } else {
 	      if ($subkey->usage_flags =~ /a/) {
 		$iscapable = 1;
 		msvalog('verbose', "...and is authentication-capable...\n");
 	      } else {
-		msvalog('verbose', "...but is not authentication-capable.\n");
+		msvalog('verbose', "...but is not authentication-capable (%s).\n",$subkey->usage_flags);
 	      }
 	    }
 	    if ($iscapable) {
@@ -800,7 +800,7 @@
 		$ret->{message} = sprintf('Successfully validated "%s" through the OpenPGP Web of Trust.', $uid);
 		last;
 	      } else {
-		msvalog('verbose', "...but is not fully valid.\n");
+		msvalog('verbose', "...but is not fully valid (%s).\n",$validity);
 		push(@subvalid_key_fprs, { fpr => $subkey->fingerprint, val => $validity }) if $lastloop;
 	      }
 	    }
