@@ -83,8 +83,7 @@ indicates the validity (as determined by the agent) of the certificate
 for the specified purpose.  The agent's return message (if any) is
 emitted on stdout.
 
-The first three command-line arguments are all required, supplied in
-order, as follows:
+The various arguments are:
 
 =over 4
 
@@ -103,18 +102,18 @@ service, supply the host's full DNS name (e.g.  'foo.example.net')
 The format of public key carrier data provided on standard input
 (e.g. 'x509der', 'x509pem', 'opensshpubkey', 'rfc4716', 'openpgp4fpr')
 
-=back
-
-The fourth argument is optional:
-
-=over 4
-
 =item PEER_TYPE
 
-The type of peer we are inquiring about (e.g. 'client', 'server')
+The type of peer we are inquiring about (e.g. 'client', 'server',
+'peer').  This argument is optional and defaults will be used (based
+on CONTEXT) if it is not supplied.
 
-If 5 arguments are given, the 5th argument is interpreted to be the
-PKC_DATA itself.  This is likely only useful for supplying an OpenPGP
+=item PKC_DATA
+
+This is the actual public key carrier data itself.  If less than five
+arguments are given, then the PKC_DATA is expected on stdin.  If five
+arguments are given, the fifth argument is interpreted as the
+PKC_DATA.  This is likely only useful for supplying an OpenPGP
 fingerprint with the 'openpgp4fpr' type.
 
 =back
