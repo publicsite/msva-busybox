@@ -36,7 +36,6 @@ if ($context eq '--help') {
   $client->log('verbose', "status: %s\n", $status);
   if (defined $ret) {
     printf("%s", $ret->{server});
-    printf("\n") if (-t STDOUT);
     exit 0;
   }
   exit 1;
@@ -67,7 +66,6 @@ if (defined $ret) {
   $client->log('info', "valid: %s\n", $ret->{valid});
   $client->log('info', "server: %s\n", $ret->{server});
   printf("%s", $ret->{message});
-  printf("\n") if (-t STDOUT);
   exit 0
     if ($ret->{valid});
 }
