@@ -21,13 +21,20 @@ use strict;
 
 use Crypt::Monkeysphere::MSVA::Client;
 
+sub usage {
+  my $name = shift;
+
+  printf STDERR ("Usage: %s CONTEXT PEER PKC_TYPE [PEER_TYPE] < PKC_DATA
+       %s CONTEXT PEER PKC_TYPE PEER_TYPE PKC_DATA
+       %s --version
+", $name, $name, $name);
+}
+
 my $context = shift;
 if ((!defined($context)) ||
     $context eq '--help') {
-  printf STDERR "Usage: msva-query-agent CONTEXT PEER PKC_TYPE [PEER_TYPE] <PKC_DATA\n";
-  printf STDERR "       msva-query-agent CONTEXT PEER PKC_TYPE PEER_TYPE PKC_DATA\n";
-  printf STDERR "       msva-query-agent --version\n";
-  exit 0;
+  usage($0);
+  exit (defined($context) ? 0 : 1);
 } elsif ($context eq '--version') {
   my $client = Crypt::Monkeysphere::MSVA::Client->new(
 						      socket => $ENV{MONKEYSPHERE_VALIDATION_AGENT_SOCKET},
