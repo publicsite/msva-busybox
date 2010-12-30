@@ -22,7 +22,8 @@ use strict;
 use Crypt::Monkeysphere::MSVA::Client;
 
 my $context = shift;
-if ($context eq '--help') {
+if ((!defined($context)) ||
+    $context eq '--help') {
   printf STDERR "Usage: msva-query-agent CONTEXT PEER PKC_TYPE [PEER_TYPE] <PKC_DATA\n";
   printf STDERR "       msva-query-agent CONTEXT PEER PKC_TYPE PEER_TYPE PKC_DATA\n";
   printf STDERR "       msva-query-agent --version\n";
