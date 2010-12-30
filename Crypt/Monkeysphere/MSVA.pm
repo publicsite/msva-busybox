@@ -711,8 +711,8 @@
     my $key;
     my $gpgquery;
     if (lc($data->{pkc}->{type}) eq 'openpgp4fpr') {
-      if ($data->{pkc}->{data} =~ /^(0x)?([[:xdigit:]]+)$/) {
-	$data->{pkc}->{data} = $2;
+      if ($data->{pkc}->{data} =~ /^(0x)?([[:xdigit:]]{40})$/) {
+	$data->{pkc}->{data} = uc($2);
 	$fpr = $data->{pkc}->{data};
 	msvalog('verbose', "OpenPGP v4 fingerprint: %s\n",$fpr);
       } else {
