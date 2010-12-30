@@ -650,7 +650,7 @@
                };
 
     # check context string
-    if ($data->{context} =~ /^(https|ssh|smtp|ike|postgresql|imaps|imap|submission|email)$/) {
+    if ($data->{context} =~ /^(https|ssh|smtp|ike|postgresql|imaps|imap|submission|e-mail)$/) {
 	$data->{context} = $1;
     } else {
 	msvalog('error', "invalid context: %s\n", $data->{context});
@@ -676,7 +676,7 @@
     }
 
     my $prefix = $data->{context}.'://';
-    if ($data->{context} eq 'email' ||
+    if ($data->{context} eq 'e-mail' ||
        (defined $data->{peer}->{type} &&
         $data->{peer}->{type} eq 'client' &&
         # ike and smtp clients are effectively other servers, so we'll
@@ -782,7 +782,7 @@
 	  if ($primarymatch) {
 	    my $iscapable = 0;
 	    msvalog('verbose', "key 0x%s matches...\n",$subkey->hex_id);
-	    if ($data->{context} eq 'email') {
+	    if ($data->{context} eq 'e-mail') {
 	      if ($subkey->usage_flags =~ /s/) {
 		$iscapable = 1;
 		msvalog('verbose', "...and is signing-capable...\n");

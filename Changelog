@@ -1,6 +1,7 @@
 msva-perl (0.9~pre) upstream;
 
-  * Add "email" context (checks for 's' capability) (closes MS #2688)
+  * Add "e-mail" context (checks for signing capability instead of
+    authentication) (closes MS #2688)
   * Add "openpgp4fpr" pkc type for providing OpenPGP v4 fingerprint
   * Add --version option to msva-query-agent
 
