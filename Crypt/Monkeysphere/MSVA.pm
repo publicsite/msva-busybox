@@ -773,13 +773,8 @@
 	}
 	# treat primary keys just like subkeys:
 	foreach my $subkey ($gpgkey, @{$gpgkey->subkeys}) {
-	  my $primarymatch;
-	  if (defined $key) {
-	    $primarymatch = keycomp($key, $subkey);
-	  } else {
-	    $primarymatch = 1;
-	  }
-	  if ($primarymatch) {
+          if ((defined($key) && keycomp($key, $subkey)) ||
+              (defined($fpr) && ($subkey->fingerprint->as_hex_string eq $fpr))) {
 	    my $iscapable = 0;
 	    msvalog('verbose', "key 0x%s matches...\n",$subkey->hex_id);
 	    if ($data->{context} eq 'e-mail') {
