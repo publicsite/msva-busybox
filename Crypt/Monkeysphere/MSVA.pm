@@ -493,6 +493,10 @@
       $key->{error} = sprintf("Don't know this public key carrier type: %s", $data->{pkc}->{type});
     }
 
+    if (exists $key->{error}) {
+      return $key;
+    }
+
     # make sure that the returned integers are Math::BigInts:
     $key->{exponent} = Math::BigInt::->new($key->{exponent}) unless (ref($key->{exponent}));
     $key->{modulus} = Math::BigInt::->new($key->{modulus}) unless (ref($key->{modulus}));
@@ -504,6 +508,7 @@
     if ($key->{modulus}->copy()->blog(2) < 1000) {
       $key->{error} = sprintf('Public key size is less than 1000 bits (was: %d bits)', $key->{modulus}->copy()->blog(2));
     }
+
     return $key;
   }
 
