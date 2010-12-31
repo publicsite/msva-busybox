@@ -74,10 +74,15 @@ if (defined $ret) {
   $client->log('info', "valid: %s\n", $ret->{valid});
   $client->log('info', "server: %s\n", $ret->{server});
   printf("%s", $ret->{message});
-  exit 0
-    if ($ret->{valid});
+  if ($ret->{valid}) {
+    exit 0
+  } else {
+    exit 1;
+  }
+} else {
+  printf("%s", $status);
+  exit 100;
 }
-exit 1;
 
 __END__
 
