@@ -649,6 +649,12 @@
                  message => 'Unknown failure',
                };
 
+    # check that there actually is key data
+    if ($data->{pkc}->{data} eq '') {
+      $ret->{message} = sprintf("Key data empty.");
+      return $status,$ret;
+    }
+
     # check context string
     if ($data->{context} =~ /^(https|ssh|smtp|ike|postgresql|imaps|imap|submission|e-mail)$/) {
 	$data->{context} = $1;
