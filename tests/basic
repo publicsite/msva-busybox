@@ -76,6 +76,9 @@ for name in x y; do
     # export fingerprint for openpgp4fpr
     gpg --with-colons --fingerprint "=${uid}" | grep '^fpr:' | cut -d: -f10 > "${WORKDIR}/pkc/${name}.openpgp4fpr"
 done
+# touch an empty openpgp4fpr file for z, who is not supposed to be in
+# the monkeysphere at all, and therefore has no openpgp4fpr
+touch "${WORKDIR}/pkc/z.openpgp4fpr"
 # and the same for the clients A and B
 for name in a b; do
     uid="${name} <${name}@example.net>"
