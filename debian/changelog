@@ -1,3 +1,9 @@
+msva-perl (0.8-2) unstable; urgency=low
+
+  * Release into unstable.
+
+ -- Daniel Kahn Gillmor <dkg@fifthhorseman.net>  Sun, 13 Feb 2011 19:49:54 -0500
+
 msva-perl (0.8-1) experimental; urgency=low
 
   * New Upstream bugfix Release.
