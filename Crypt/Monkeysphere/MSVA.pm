@@ -22,6 +22,9 @@
   use vars qw($VERSION);
 
   use parent qw(HTTP::Server::Simple::CGI);
+
+  use Crypt::Monkeysphere::Validator;
+
   require Crypt::X509;
   use Regexp::Common qw /net/;
   use Convert::ASN1;
@@ -59,10 +62,9 @@
                                    },
                  );
 
-  my $default_keyserver = 'hkp://pool.sks-keyservers.net';
   my $default_keyserver_policy = 'unlessvalid';
 
-  my $logger = Crypt::Monkeysphere::Logger::->new($ENV{MSVA_LOG_LEVEL});
+  my $logger = Crypt::Monkeysphere::Logger->new($ENV{MSVA_LOG_LEVEL});
   sub logger {
     return $logger;
   }
@@ -360,21 +362,6 @@
     }
   }
 
-  sub keycomp {
-    my $rsakey = shift;
-    my $gpgkey = shift;
-
-    if ($gpgkey->algo_num != 1) {
-      msvalog('verbose', "Monkeysphere only does RSA keys.  This key is algorithm #%d\n", $gpgkey->algo_num);
-    } else {
-      if ($rsakey->{exponent}->bcmp($gpgkey->pubkey_data->[1]) == 0 &&
-          $rsakey->{modulus}->bcmp($gpgkey->pubkey_data->[0]) == 0) {
-        return 1;
-      }
-    }
-    return 0;
-  }
-
   sub get_keyserver_policy {
     if (exists $ENV{MSVA_KEYSERVER_POLICY} and $ENV{MSVA_KEYSERVER_POLICY} ne '') {
       if ($ENV{MSVA_KEYSERVER_POLICY} =~ /^(always|never|unlessvalid)$/) {
@@ -397,82 +384,10 @@
 
     # FIXME: some msva.conf or monkeysphere.conf file (system and user?)
 
-    # or else read from the relevant gnupg.conf:
-    my $gpghome;
-    if (exists $ENV{GNUPGHOME} and $ENV{GNUPGHOME} ne '') {
-      $gpghome = untaint($ENV{GNUPGHOME});
-    } else {
-      $gpghome = File::Spec->catfile(File::HomeDir->my_home, '.gnupg');
-    }
-    my $gpgconf = File::Spec->catfile($gpghome, 'gpg.conf');
-    if (-f $gpgconf) {
-      if (-r $gpgconf) {
-        my %gpgconfig = Config::General::ParseConfig($gpgconf);
-        if ($gpgconfig{keyserver} =~ /^(((hkps?|hkpms|finger|ldap):\/\/)?$RE{net}{domain})$/) {
-          msvalog('debug', "Using keyserver %s from the GnuPG configuration file (%s)\n", $1, $gpgconf);
-          return $1;
-        } else {
-          msvalog('error', "Not a valid keyserver (from gpg config %s):\n  %s\n", $gpgconf, $gpgconfig{keyserver});
-        }
-      } else {
-        msvalog('error', "The GnuPG configuration file (%s) is not readable\n", $gpgconf);
-      }
-    } else {
-      msvalog('info', "Did not find GnuPG configuration file while looking for keyserver '%s'\n", $gpgconf);
-    }
-
-    # the default_keyserver
-    return $default_keyserver;
+    # let the keyserver routines choose.
+    return undef;
   }
 
-  sub fetch_fpr_from_keyserver {
-    my $fpr = shift;
-
-    my $cmd = IO::Handle::->new();
-    my $nul = IO::File::->new("< /dev/null");
-
-    my $ks = get_keyserver();
-    msvalog('debug', "start ks query to %s for fingerprint: %s\n", $ks, $fpr);
-    my $pid = $gnupg->wrap_call
-      ( handles => GnuPG::Handles::->new( command => $cmd, stdout => $nul, stderr => $nul ),
-	command_args => [ '0x'.$fpr ],
-	commands => [ '--keyserver',
-		      $ks,
-		      qw( --no-tty --recv-keys ) ]
-					);
-    # FIXME: can we do something to avoid hanging forever?
-    waitpid($pid, 0);
-    msvalog('debug', "ks query returns %d\n", POSIX::WEXITSTATUS($?));
-  }
-
-  sub fetch_uid_from_keyserver {
-    my $uid = shift;
-
-    my $cmd = IO::Handle::->new();
-    my $out = IO::Handle::->new();
-    my $nul = IO::File::->new("< /dev/null");
-
-    my $ks = get_keyserver();
-    msvalog('debug', "start ks query to %s for UserID: %s\n", $ks, $uid);
-    my $pid = $gnupg->wrap_call
-      ( handles => GnuPG::Handles::->new( command => $cmd, stdout => $out, stderr => $nul ),
-        command_args => [ '='.$uid ],
-        commands => [ '--keyserver',
-                      $ks,
-                      qw( --no-tty --with-colons --search ) ]
-      );
-    while (my $line = $out->getline()) {
-      msvalog('debug', "from ks query: (%d) %s", $cmd->fileno, $line);
-      if ($line =~ /^info:(\d+):(\d+)/ ) {
-        $cmd->print(join(' ', ($1..$2))."\n");
-        msvalog('debug', 'to ks query: '.join(' ', ($1..$2))."\n");
-        last;
-      }
-    }
-    # FIXME: can we do something to avoid hanging forever?
-    waitpid($pid, 0);
-    msvalog('debug', "ks query returns %d\n", POSIX::WEXITSTATUS($?));
-  }
 
 ##################################################
 ## PKC KEY EXTRACTION ############################
@@ -715,7 +630,6 @@
     # extract key or openpgp fingerprint from PKC
     my $fpr;
     my $key;
-    my $gpgquery;
     if (lc($data->{pkc}->{type}) eq 'openpgp4fpr') {
       if ($data->{pkc}->{data} =~ /^(0x)?([[:xdigit:]]{40})$/) {
 	$data->{pkc}->{data} = uc($2);
@@ -726,7 +640,6 @@
 	$ret->{message} = sprintf("Invalid OpenPGP v4 fingerprint.");
 	return $status,$ret;
       }
-      $gpgquery = '0x'.$fpr;
     } else {
       # extract key from PKC
       $key = pkcextractkey($data);
@@ -734,13 +647,7 @@
 	$ret->{message} = $key->{error};
 	return $status,$ret;
       }
-      $gpgquery = '='.$uid;
     }
-
-    # setup variables
-    $ret->{message} = sprintf('Failed to validate "%s" through the OpenPGP Web of Trust.', $uid);
-    my $lastloop = 0;
-    my $foundvalid = 0;
 
     # determine keyserver policy
     my $kspolicy;
@@ -754,83 +661,25 @@
     msvalog('debug', "keyserver policy: %s\n", $kspolicy);
     # needed because $gnupg spawns child processes
     $ENV{PATH} = '/usr/local/bin:/usr/bin:/bin';
-    if ($kspolicy eq 'always') {
-      if (defined $fpr) {
-	fetch_fpr_from_keyserver($fpr);
-      } else {
-	fetch_uid_from_keyserver($uid);
-      }
-      $lastloop = 1;
-    } elsif ($kspolicy eq 'never') {
-      $lastloop = 1;
-    }
 
-    # fingerprints of keys that are not fully-valid for this User ID, but match
-    # the key from the queried certificate:
-    my @subvalid_key_fprs;
+    $ret->{message} = sprintf('Failed to validate "%s" through the OpenPGP Web of Trust.', $uid);
 
-    while (1) {
-      foreach my $gpgkey ($gnupg->get_public_keys($gpgquery)) {
-	my $validity = '-';
-	foreach my $tryuid ($gpgkey->user_ids) {
-	  if ($tryuid->as_string eq $uid) {
-	    $validity = $tryuid->validity;
-	  }
-	}
-	# treat primary keys just like subkeys:
-	foreach my $subkey ($gpgkey, @{$gpgkey->subkeys}) {
-          if ((defined($key) && keycomp($key, $subkey)) ||
-              (defined($fpr) && ($subkey->fingerprint->as_hex_string eq $fpr))) {
-	    my $iscapable = 0;
-	    msvalog('verbose', "key 0x%s matches...\n",$subkey->hex_id);
-	    if ($data->{context} eq 'e-mail') {
-	      if ($subkey->usage_flags =~ /s/) {
-		$iscapable = 1;
-		msvalog('verbose', "...and is signing-capable...\n");
-	      } else {
-		msvalog('verbose', "...but is not signing-capable (%s).\n",$subkey->usage_flags);
-	      }
-	    } else {
-	      if ($subkey->usage_flags =~ /a/) {
-		$iscapable = 1;
-		msvalog('verbose', "...and is authentication-capable...\n");
-	      } else {
-		msvalog('verbose', "...but is not authentication-capable (%s).\n",$subkey->usage_flags);
-	      }
-	    }
-	    if ($iscapable) {
-	      if ($validity =~ /^[fu]$/) {
-		$foundvalid = 1;
-		msvalog('verbose', "...and is fully valid!\n");
-		$ret->{valid} = JSON::true;
-		$ret->{message} = sprintf('Successfully validated "%s" through the OpenPGP Web of Trust.', $uid);
-		last;
-	      } else {
-		msvalog('verbose', "...but is not fully valid (%s).\n",$validity);
-		push(@subvalid_key_fprs, { fpr => $subkey->fingerprint, val => $validity }) if $lastloop;
-	      }
-	    }
-	  }
-	}
-	last if ($foundvalid);
-      }
-      if ($lastloop || $foundvalid) {
-	last;
-      } else {
-	if (!$foundvalid) {
-	  if (defined $fpr) {
-	    fetch_fpr_from_keyserver($fpr);
-	  } else {
-	    fetch_uid_from_keyserver($uid);
-	  }
-	}
-	$lastloop = 1;
-      }
-    }
+    my $validator=new Crypt::Monkeysphere::Validator(kspolicy=>$kspolicy,
+						     context=>$data->{context},
+						     keyserver=>get_keyserver(),
+						     gnupg=>$gnupg,
+						     logger=>$logger);
+
+    my $uid_query=$validator->query(uid=>$uid,fpr=>$fpr, key=>$key );
 
     # only show the marginal UI if the UID of the corresponding
     # key is not fully valid.
-    if (!$foundvalid) {
+    if (scalar(@{$uid_query->{valid_keys}}) > 0) {
+      $ret->{valid} = JSON::true;
+      $ret->{message} = sprintf('Successfully validated "%s" through the OpenPGP Web of Trust.', $uid);
+    } else
+      my @subvalid_key_fprs= map { $_->{fingerprint} }   @{$uid_query->{subvalid_keys}};
+
       my $resp = Crypt::Monkeysphere::MSVA::MarginalUI->ask_the_user($gnupg,
 								     $uid,
 								     \@subvalid_key_fprs,
