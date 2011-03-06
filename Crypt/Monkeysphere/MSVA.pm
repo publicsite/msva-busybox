@@ -33,7 +33,7 @@
   use File::HomeDir;
   use Config::General;
   use Crypt::Monkeysphere::MSVA::MarginalUI;
-  use Crypt::Monkeysphere::MSVA::Logger;
+  use Crypt::Monkeysphere::Logger;
   use Crypt::Monkeysphere::MSVA::Monitor;
 
   use JSON;
@@ -62,7 +62,7 @@
   my $default_keyserver = 'hkp://pool.sks-keyservers.net';
   my $default_keyserver_policy = 'unlessvalid';
 
-  my $logger = Crypt::Monkeysphere::MSVA::Logger::->new($ENV{MSVA_LOG_LEVEL});
+  my $logger = Crypt::Monkeysphere::Logger::->new($ENV{MSVA_LOG_LEVEL});
   sub logger {
     return $logger;
   }

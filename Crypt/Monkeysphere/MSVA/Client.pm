@@ -26,7 +26,7 @@
   use strict;
   use warnings;
   use JSON;
-  use Crypt::Monkeysphere::MSVA::Logger;
+  use Crypt::Monkeysphere::Logger;
   use LWP::UserAgent;
   use HTTP::Request;
   use Module::Load::Conditional;
@@ -134,7 +134,7 @@
     my %args = @_;
     my $self = {};
 
-    $self->{logger} = Crypt::Monkeysphere::MSVA::Logger->new($args{log_level});
+    $self->{logger} = Crypt::Monkeysphere::Logger->new($args{log_level});
     $self->{socket} = $args{socket};
     $self->{socket} = 'http://localhost:8901'
       if (! defined $self->{socket} or $self->{socket} eq '');
