@@ -7,6 +7,7 @@ use FindBin;
 my $BINDIR;
 BEGIN { $BINDIR = $FindBin::Bin; }
 
+my @dirs = scalar(@ARGV) > 0 ? @ARGV : ($BINDIR);
 
 my @tests;
 
@@ -14,7 +15,7 @@ sub wanted {
   push (@tests,$File::Find::name) if -f && m/.*\.t$/;
 }
 
-find(\&wanted, $BINDIR);
+find(\&wanted, @dirs);
 
 print STDERR "found ",scalar(@tests)," tests\n";
 
