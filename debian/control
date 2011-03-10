@@ -13,13 +13,13 @@ Vcs-Git: git://git.monkeysphere.info/msva-perl
 Package: msva-perl
 Architecture: all
 Depends: 
- libcrypt-x509-perl,
+ libcrypt-x509-perl (>= 0.50),
  libconvert-asn1-perl,
  libnet-server-perl,
  libhttp-server-simple-perl,
  libjson-perl,
  libparent-perl,
- libgnupg-interface-perl (>= 0.42.02),
+ libgnupg-interface-perl (>= 0.43),
  libregexp-common-perl,
  libfile-homedir-perl,
  libconfig-general-perl,
@@ -30,7 +30,7 @@ Recommends:
  liblinux-inotify2-perl,
  liburi-perl,
  libnet-ssleay-perl,
- libio-socket-ssl-perl (>=1.37),
+ libio-socket-ssl-perl (>= 1.37),
  libwww-perl
 Suggests:
  liblwp-protocol-socks-perl

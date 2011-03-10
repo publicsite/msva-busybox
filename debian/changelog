@@ -1,3 +1,9 @@
+msva-perl (0.9~pre-1) UNRELEASED; urgency=low
+
+  * New Upstream version (tighter dependencies)
+
+ -- Daniel Kahn Gillmor <dkg@fifthhorseman.net>  Fri, 11 Mar 2011 18:25:03 -0500
+
 msva-perl (0.8-2) unstable; urgency=low
 
   * Release into unstable.
