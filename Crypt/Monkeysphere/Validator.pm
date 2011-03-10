@@ -13,7 +13,7 @@ sub new {
 
   $self->{findall} = $opts{findall} || 0;
   $self->{context}=$opts{context} || 'ssh';
-
+  $self->{kspolicy}=$opts{kspolicy} || 'unlessvalid';
   return $self;
 }
 
