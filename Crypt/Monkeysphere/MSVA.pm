@@ -37,6 +37,7 @@
   use Config::General;
   use Crypt::Monkeysphere::MSVA::MarginalUI;
   use Crypt::Monkeysphere::Logger;
+  use Crypt::Monkeysphere::Util qw(untaint);
   use Crypt::Monkeysphere::MSVA::Monitor;
 
   use JSON;
@@ -747,15 +748,6 @@
               $self->{child_pid} == $pid)) {
       $self->master_subprocess_died($server, $?);
     }
-  }
-
-  # use sparingly!  We want to keep taint mode around for the data we
-  # get over the network.  this is only here because we want to treat
-  # the command line arguments differently for the subprocess.
-  sub untaint {
-    my $x = shift;
-    $x =~ /^(.*)$/ ;
-    return $1;
   }
 
   sub post_bind_hook {

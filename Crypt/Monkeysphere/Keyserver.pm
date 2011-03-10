@@ -10,6 +10,7 @@ use POSIX;
 use strict;
 use warnings;
 use parent qw(Crypt::Monkeysphere::Logger);
+use Crypt::Monkeysphere::Util qw(untaint);
 
 our $default_keyserver='hkp://pool.sks-keyservers.net';
 
@@ -19,8 +20,12 @@ sub new {
 
   my $self=$class->SUPER::new($opts{loglevel} || 'info');
 
-  $self->{keyserver} = $opts{keyserver} || $self->_get_keyserver();
+  # gnupg should be initialized first, before figuring out 
+  # what keyserver to use.
+
   $self->{gnupg} = $opts{gnupg} || new GnuPG::Interface();
+
+  $self->{keyserver} = $opts{keyserver} || $self->_get_keyserver();
   return $self;
 }
 
@@ -28,13 +33,31 @@ sub _get_keyserver{
 
   my $self=shift;
 
-  my $gpghome;
+  my $gpghome=$self->{gnupg}->options->homedir;
 
-  if (exists $ENV{GNUPGHOME} and $ENV{GNUPGHOME} ne '') {
-    $gpghome = untaint($ENV{GNUPGHOME});
-  } else {
-    $gpghome = File::Spec->catfile(File::HomeDir->my_home, '.gnupg');
+  if (!defined($gpghome)) {
+    if (exists $ENV{GNUPGHOME} and $ENV{GNUPGHOME} ne '') {
+      $gpghome = untaint($ENV{GNUPGHOME});
+    } else {
+      my $userhome=File::HomeDir->my_home;
+      if (defined($userhome)) {
+	$gpghome = File::Spec->catfile($userhome, '.gnupg');
+      }
+    }
   }
+
+  if (defined $gpghome) {
+    return $self->_read_keyserver_from_gpg_conf($gpghome) || $default_keyserver;
+  } else {
+    return $default_keyserver;
+  }
+
+}
+
+sub _read_keyserver_from_gpg_conf() {
+  my $self=shift;
+  my $gpghome=shift;
+
   my $gpgconf = File::Spec->catfile($gpghome, 'gpg.conf');
   if (-f $gpgconf) {
     if (-r $gpgconf) {
@@ -51,10 +74,9 @@ sub _get_keyserver{
   } else {
     $self->log('info', "Did not find GnuPG configuration file while looking for keyserver '%s'\n", $gpgconf);
   }
-
-  return $default_keyserver;
+  return undef;
+  
 }
-
 
 
 sub fetch_uid {
