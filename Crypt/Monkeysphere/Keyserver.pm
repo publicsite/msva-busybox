@@ -37,6 +37,11 @@ sub _get_keyserver{
 
   if (!defined($gpghome)) {
     if (exists $ENV{GNUPGHOME} and $ENV{GNUPGHOME} ne '') {
+
+      # We might be running in taint mode, but we assume that is about
+      # data coming from the network, and that the local environment
+      # is generally trustworthy.
+
       $gpghome = untaint($ENV{GNUPGHOME});
     } else {
       my $userhome=File::HomeDir->my_home;

@@ -8,8 +8,7 @@ our @EXPORT_OK=qw(untaint);
 
 
 # use sparingly!  We want to keep taint mode around for the data we
-# get over the network.  this is only here because we want to treat
-# the command line arguments differently for the subprocess.
+# get over the network.
 sub untaint {
   my $x = shift;
   $x =~ /^(.*)$/ ;
