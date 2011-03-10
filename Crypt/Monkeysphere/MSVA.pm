@@ -677,7 +677,7 @@
     if (scalar(@{$uid_query->{valid_keys}}) > 0) {
       $ret->{valid} = JSON::true;
       $ret->{message} = sprintf('Successfully validated "%s" through the OpenPGP Web of Trust.', $uid);
-    } else
+    } else {
       my @subvalid_key_fprs= map { $_->{fingerprint} }   @{$uid_query->{subvalid_keys}};
 
       my $resp = Crypt::Monkeysphere::MSVA::MarginalUI->ask_the_user($gnupg,
