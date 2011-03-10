@@ -17,6 +17,8 @@ sub wanted {
 
 find(\&wanted, @dirs);
 
+@tests=sort @tests;
+
 print STDERR "found ",scalar(@tests)," tests\n";
 
 my $harness = TAP::Harness->new( { verbosity => 1,
