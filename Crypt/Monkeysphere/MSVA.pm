@@ -25,9 +25,8 @@
 
   use Crypt::Monkeysphere::Validator;
 
-  require Crypt::X509;
+  use Crypt::X509 0.50;
   use Regexp::Common qw /net/;
-  use Convert::ASN1;
   use MIME::Base64;
   use IO::Socket;
   use IO::File;
@@ -69,15 +68,6 @@
   sub logger {
     return $logger;
   }
-
-  my $rsa_decoder = Convert::ASN1::->new();
-  $rsa_decoder->prepare(q<
-
-   SEQUENCE {
-        modulus INTEGER,
-        exponent INTEGER
-   }
-          >);
 
   sub net_server {
     return 'Net::Server::MSVA';
@@ -448,7 +438,7 @@
                                 $cert->PubKeyAlg(), $cert->pubkey_algorithm);
       } else {
         msvalog('debug', "decoding ASN.1 pubkey\n");
-        $key = $rsa_decoder->decode($cert->pubkey());
+        $key = $cert->pubkey_components();
         if (! defined $key) {
           msvalog('verbose', "failed to decode %s\n", unpack('H*', $cert->pubkey()));
           $key = {error => 'failed to decode the public key'};
