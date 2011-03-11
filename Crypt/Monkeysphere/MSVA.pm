@@ -42,7 +42,7 @@
   use JSON;
   use POSIX qw(strftime);
   # we need the version of GnuPG::Interface that knows about pubkey_data, etc:
-  use GnuPG::Interface 0.42.02;
+  use GnuPG::Interface 0.43;
 
   $VERSION = '0.9~pre';
 
