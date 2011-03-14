@@ -429,7 +429,7 @@
       $key->{error} = sprintf("Error decoding X.509 certificate: %s", $cert->error);
     } else {
       msvalog('verbose', "cert subject: %s\n", $cert->subject_cn());
-      msvalog('verbose', "cert issuer: %s\n", $cert->issuer_cn());
+      msvalog('verbose', "cert issuer: %s\n", (defined $cert->issuer_cn() ? $cert->issuer_cn() : '<none>'));
       msvalog('verbose', "cert pubkey algo: %s\n", $cert->PubKeyAlg());
       msvalog('verbose', "cert pubkey: %s\n", unpack('H*', $cert->pubkey()));
 
