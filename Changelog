@@ -16,8 +16,10 @@ msva-perl (0.9~pre) upstream;
   * Now depending on Crypt::X509 0.50 for pubkey components directly.
   * Crypt::Monkeysphere::OpenPGP for helper functions in
     packet generation and parsing.
+  * Parse and make use of X.509 PGPExtension if present in X.509 public
+    key carrier.
 
- -- Daniel Kahn Gillmor <dkg@fifthhorseman.net>  Fri, 11 Mar 2011 01:24:55 -0500
+ -- Daniel Kahn Gillmor <dkg@fifthhorseman.net>  Mon, 14 Mar 2011 01:07:50 -0400
 
 msva-perl (0.8) upstream;
 

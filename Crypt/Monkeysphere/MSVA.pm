@@ -38,6 +38,7 @@
   use Crypt::Monkeysphere::Logger;
   use Crypt::Monkeysphere::Util qw(untaint);
   use Crypt::Monkeysphere::MSVA::Monitor;
+  use Crypt::Monkeysphere::OpenPGP;
 
   use JSON;
   use POSIX qw(strftime);
@@ -442,6 +443,16 @@
         if (! defined $key) {
           msvalog('verbose', "failed to decode %s\n", unpack('H*', $cert->pubkey()));
           $key = {error => 'failed to decode the public key'};
+        } else {
+          # ensure these are Math::BigInts!
+          $key->{exponent} = Math::BigInt::->new($key->{exponent}) unless (ref($key->{exponent}));
+          $key->{modulus} = Math::BigInt::->new($key->{modulus}) unless (ref($key->{modulus}));
+
+          my $pgpext = $cert->PGPExtension();
+          if (defined $pgpext) {
+            $key->{openpgp4fpr} = Crypt::Monkeysphere::OpenPGP::fingerprint($key, $pgpext);
+            msvalog('verbose', "OpenPGP Fingerprint (derived from X.509 cert): 0x%s\n", uc(unpack("H*", $key->{openpgp4fpr})));
+          }
         }
       }
     }
@@ -625,7 +636,6 @@
       if ($data->{pkc}->{data} =~ /^(0x)?([[:xdigit:]]{40})$/) {
 	$data->{pkc}->{data} = uc($2);
 	$fpr = $data->{pkc}->{data};
-	msvalog('verbose', "OpenPGP v4 fingerprint: %s\n",$fpr);
       } else {
 	msvalog('error', "invalid OpenPGP v4 fingerprint: %s\n",$data->{pkc}->{data});
 	$ret->{message} = sprintf("Invalid OpenPGP v4 fingerprint.");
@@ -638,7 +648,11 @@
 	$ret->{message} = $key->{error};
 	return $status,$ret;
       }
+      $fpr = uc(unpack('H*', $key->{openpgp4fpr}))
+        if (exists $key->{openpgp4fpr});
     }
+    msvalog('verbose', "OpenPGP v4 fingerprint: %s\n",$fpr)
+      if defined $fpr;
 
     # determine keyserver policy
     my $kspolicy;
