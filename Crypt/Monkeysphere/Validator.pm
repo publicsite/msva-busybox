@@ -90,7 +90,7 @@ sub query{
 		last unless($self->{findall});
 	      } else {
 		$self->log('verbose', "...but is not fully valid (%s).\n",$validity);
-		push(@{$self->{subvalid_keys}},
+		push(@{$ret->{subvalid_keys}},
 		     {fingerprint => $subkey->fingerprint, val => $validity }) if $lastloop;
 	      }
 	    }
