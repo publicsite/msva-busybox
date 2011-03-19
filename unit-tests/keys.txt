@@ -1,0 +1,47 @@
+# For use with gpg --batch --gen-key
+
+Key-Type: DSA
+Key-Length: 1024
+Subkey-Type: ELG-E
+Subkey-Length: 1024
+Name-Real: Joe Tester
+Name-Email: joe@example.net
+Expire-Date: 0
+
+Key-Type: RSA
+Key-Length: 2048
+Key-Usage: sign
+Subkey-Type: RSA
+Subkey-Length: 1024
+Subkey-Usage: auth
+Name-Real: Joe Tester
+Name-Email: joe@example.net
+Expire-Date: 0
+
+Key-Type: RSA
+Key-Length: 2048
+Key-Usage: sign
+Subkey-Type: RSA
+Subkey-Length: 1024
+Subkey-Usage: sign
+Name-Real: Joe Tester
+Name-Email: joe@example.net
+Expire-Date: 0
+
+Key-Type: RSA
+Key-Length: 2048
+Key-Usage: auth
+Name-Real: Joe Tester
+Name-Email: joe@example.net
+Expire-Date: 0
+
+Key-Type: RSA
+Key-Length: 2048
+Key-Usage: encrypt
+Subkey-Type: RSA
+Subkey-Length: 1024
+Subkey-Usage: auth
+Name-Real: Joe Tester
+Name-Email: jojo@example.net
+Expire-Date: 0
+
