@@ -7,6 +7,8 @@ use File::Temp qw(tempdir);
 
 use strict;
 
+my $keyserver= $ENV{MSTEST_KEYSERVER} || 'hkp://pool.sks-keyservers.net';
+
 my $uid='David Bremner <david@tethera.net>';
 plan tests =>2;
 
@@ -15,6 +17,7 @@ my $gnupg = new GnuPG::Interface();
 $gnupg->options->hash_init(homedir=>$tempdir);
 
 my $ks=new Crypt::Monkeysphere::Keyserver(gnupg=>$gnupg,
+					  keyserver=>$keyserver,
 					  loglevel=>'debug');
 
 isa_ok($ks,'Crypt::Monkeysphere::Keyserver');

@@ -11,6 +11,7 @@ use strict;
 my $uid='David Bremner <david@tethera.net>';
 plan tests =>2;
 
+my $keyserver= $ENV{MSTEST_KEYSERVER} || 'hkp://pool.sks-keyservers.net';
 my $tempdir = tempdir("unitXXXXX", CLEANUP=> 1);
 my $gnupg = new GnuPG::Interface();
 $gnupg->options->hash_init(homedir=>$tempdir,
@@ -18,7 +19,8 @@ $gnupg->options->hash_init(homedir=>$tempdir,
 			  );
 
 my $validator=new Crypt::Monkeysphere::Validator(gnupg=>$gnupg,
-					  loglevel=>'debug');
+						 keyserver=>$keyserver,
+						 loglevel=>'debug');
 
 isa_ok($validator,'Crypt::Monkeysphere::Validator');
 
