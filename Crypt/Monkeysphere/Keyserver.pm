@@ -14,6 +14,21 @@ use Crypt::Monkeysphere::Util qw(untaint);
 
 our $default_keyserver='hkp://pool.sks-keyservers.net';
 
+=pod 
+
+=head2 new
+
+Create a new Crypt::Monkeysphere::Keyserver instance
+
+Arguments
+  Param hash, all optional.
+
+     keyserver => URL
+     gnupg => GnuPG::Interface object
+
+  (plus arguments for Crypt::Monkeysphere::Logger::new)
+
+=cut
 sub new {
   my $class=shift;
   my %opts=@_;

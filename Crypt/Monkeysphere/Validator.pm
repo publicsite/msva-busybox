@@ -5,6 +5,28 @@ use warnings;
 
 use parent 'Crypt::Monkeysphere::Keyserver';
 
+=pod
+
+=head2 new
+
+Create a new Crypt::Monkeysphere::Validator instance
+
+Arguments
+  
+     Param hash, all optional.
+
+     findall => 0|1   return all suitable keys, rather than first suitable
+
+     context => 'e-mail' | something else. 
+			control what counts as a suitable key.
+
+     kspolicy => 'always|never|unlessvalid'   
+			when to fetch keys from keyserver.
+
+  (plus arguments for Crypt::Monkeysphere::{Keyserver,Logger}::new )
+
+=cut
+
 sub new {
   my $class=shift;
   my %opts=@_;
