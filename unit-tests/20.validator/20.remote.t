@@ -26,9 +26,9 @@ isa_ok($validator,'Crypt::Monkeysphere::Validator');
 
 my $return=$validator->query(uid=>$uid);
 
-print Dumper($return);
+print Dumper($return) if ($ENV{MSTEST_DEBUG});
 
-is(defined($return),1);
+ok(scalar @{$return->{valid_keys}} > 0);
 
 
 
