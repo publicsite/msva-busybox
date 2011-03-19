@@ -34,7 +34,7 @@ BEGIN { $BINDIR = $FindBin::Bin; }
 			       handles=>new GnuPG::Handles() );
   waitpid $pid,0;
 
-  $ENV{GNUPGHOME}=$tempdir;
+  $ENV{MSTEST_GNUPGHOME}=$tempdir;
 }
 
 my @dirs = scalar(@ARGV) > 0 ? @ARGV : ($BINDIR);
