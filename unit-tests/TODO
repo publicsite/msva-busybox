@@ -1,0 +1,8 @@
+
+The following are currently not tested
+
+- subvalid keys for a userid
+- multiple subkeys from the same primary key
+- multiple uids on the same key
+
+ -- David Bremner <bremner@debian.org>, Wed, 23 Mar 2011 20:40:14 -0300
