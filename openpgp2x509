@@ -82,10 +82,16 @@ my $algos = {
 # https://tools.ietf.org/html/rfc4880#section-11.1 , in "raw"
 # (non-ascii-armored) form.
 
-# this is the same as NullSignatureUseOpenPGP, but with the OpenPGP
-# material transported in-band in addition.
+# If it were implemented, it would be the same as
+# NullSignatureUseOpenPGP, but with the OpenPGP material transported
+# in-band in addition.
 
-# this has a few downsides:
+## NOTE: There is no implementation of the OpenPGPCertificateEmbedded,
+## and maybe there never will be.  Another approach would be to
+## transmitting OpenPGP signature packets in the TLS channel itself,
+## with an extension comparable to OCSP stapling.
+
+# the OpenPGPCertificateEmbedded concept has a few downsides:
 
 # 1) data duplication -- the X.509 Subject Public Key material is
 #    repeated (either in the primary key packet, or in one of the
