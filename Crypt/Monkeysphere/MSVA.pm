@@ -683,11 +683,9 @@
       $ret->{valid} = JSON::true;
       $ret->{message} = sprintf('Successfully validated "%s" through the OpenPGP Web of Trust.', $uid);
     } else {
-      my @subvalid_key_fprs= map { $_->{fingerprint} }   @{$uid_query->{subvalid_keys}};
-
       my $resp = Crypt::Monkeysphere::MSVA::MarginalUI->ask_the_user($gnupg,
 								     $uid,
-								     \@subvalid_key_fprs,
+								     $uid_query->{subvalid_keys},
 								     getpidswithsocketinode($clientinfo->{inode}),
 								     $logger);
       msvalog('info', "response: %s\n", $resp);
