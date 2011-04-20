@@ -132,7 +132,7 @@ sub lookup {
   my %opts=@_;
 
   if ($self->{kspolicy} eq 'unlessvalid') {
-    my $ret = $self->_tryquery(uid => $opts{uid}, fpr => $opts{fpr}, key => $opts{key}, subvalid => 0);
+    my $ret = $self->_tryquery(uid => $opts{uid}, fpr => $opts{fpr}, key => $opts{key});
     return $ret
       if exists($ret->{valid_key});
   };
@@ -144,7 +144,7 @@ sub lookup {
       $self->fetch_uid($opts{uid});
     }
   }
-  return $self->_tryquery(uid => $opts{uid}, fpr => $opts{fpr}, key => $opts{key}, subvalid => 1);
+  return $self->_tryquery(uid => $opts{uid}, fpr => $opts{fpr}, key => $opts{key});
 }
 
 sub keycomp {
