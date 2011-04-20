@@ -3,9 +3,11 @@ package Crypt::Monkeysphere::Keytrans;
 use strict;
 use warnings;
 use Math::BigInt;
+use Carp;
+use MIME::Base64;
 
 use Exporter qw(import);
-our @EXPORT_OK=qw(openssh_rsa_pubkey_pack);
+our @EXPORT_OK=qw();
 
 
 # takes a Math::BigInt and returns it properly packed for openssh output.
@@ -45,5 +47,19 @@ sub openssh_rsa_pubkey_pack {
 	openssh_mpi_pack($modulus);
 }
 
+
+sub GnuPGKey_to_OpenSSH_pub {
+  my $key = shift;
+
+  croak("not a GnuPG::Key!")
+    unless($key->isa('GnuPG::Key'));
+
+  croak("Not an RSA key!")
+    unless $key->algo_num == 1;
+
+  use Data::Dumper;
+
+  return encode_base64(openssh_rsa_pubkey_pack(@{$key->pubkey_data}), '');
+}
 
 1;
