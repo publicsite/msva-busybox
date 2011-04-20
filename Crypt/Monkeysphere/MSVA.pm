@@ -764,18 +764,20 @@
       $server->set_exit_status(10);
       $server->server_close();
     }
-    my $port = @{ $server->{server}->{sock} }[0]->sockport();
-    if ((! defined $port) || ($port < 1) || ($port >= 65536)) {
-      msvalog('error', "got nonsense port: %d.\n", $port);
-      $server->set_exit_status(11);
-      $server->server_close();
+    if (!defined($self->port) || $self->port == 0) {
+      my $port = @{ $server->{server}->{sock} }[0]->sockport();
+      if ((! defined($port)) || ($port < 1) || ($port >= 65536)) {
+        msvalog('error', "got nonsense port: %d.\n", $port);
+        $server->set_exit_status(11);
+        $server->server_close();
+      }
+      if ((exists $ENV{MSVA_PORT}) && (($ENV{MSVA_PORT} + 0) != $port)) {
+        msvalog('error', "Explicitly requested port %d, but got port: %d.", ($ENV{MSVA_PORT}+0), $port);
+        $server->set_exit_status(13);
+        $server->server_close();
+      }
+      $self->port($port);
     }
-    if ((exists $ENV{MSVA_PORT}) && (($ENV{MSVA_PORT} + 0) != $port)) {
-      msvalog('error', "Explicitly requested port %d, but got port: %d.", ($ENV{MSVA_PORT}+0), $port);
-      $server->set_exit_status(13);
-      $server->server_close();
-    }
-    $self->port($port);
     $self->{updatemonitor} = Crypt::Monkeysphere::MSVA::Monitor::->new($logger);
   }
 
