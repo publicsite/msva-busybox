@@ -12,15 +12,13 @@ use parent 'Crypt::Monkeysphere::Keyserver';
 Create a new Crypt::Monkeysphere::Validator instance
 
 Arguments
-  
+
      Param hash, all optional.
 
-     findall => 0|1   return all suitable keys, rather than first suitable
+     context => 'e-mail' | 'https' | 'ssh', etc.
+			control what counts as a suitable user IDs.
 
-     context => 'e-mail' | something else. 
-			control what counts as a suitable key.
-
-     kspolicy => 'always|never|unlessvalid'   
+     kspolicy => 'always|never|unlessvalid'
 			when to fetch keys from keyserver.
 
   (plus arguments for Crypt::Monkeysphere::{Keyserver,Logger}::new )
@@ -33,7 +31,6 @@ sub new {
 
   my $self=$class->SUPER::new(%opts);
 
-  $self->{findall} = $opts{findall} || 0;
   $self->{context}=$opts{context} || 'ssh';
   $self->{kspolicy}=$opts{kspolicy} || 'unlessvalid';
   return $self;
@@ -109,7 +106,7 @@ sub query{
 		$self->log('verbose', "...and is fully valid!\n");
 		push(@{$ret->{valid_keys}},
 		     { fingerprint => $subkey->fingerprint, val => $validity });
-		last unless($self->{findall});
+		last;
 	      } else {
 		$self->log('verbose', "...but is not fully valid (%s).\n",$validity);
 		push(@{$ret->{subvalid_keys}},
@@ -118,24 +115,22 @@ sub query{
 	    }
 	  }
 	}
-	last if ($foundvalid);
-      }
-      if ($lastloop || $foundvalid) {
-	last;
-      } else {
-	if (!$foundvalid) {
-	  if (defined $fpr) {
-	    $self->fetch_fpr($fpr);
-	  } else {
-	    $self->fetch_uid($uid);
-	  }
-	}
-	$lastloop = 1;
-      }
+      last if ($foundvalid);
     }
-
+    if ($lastloop || $foundvalid) {
+      last;
+    } else {
+      if (!$foundvalid) {
+        if (defined $fpr) {
+          $self->fetch_fpr($fpr);
+        } else {
+          $self->fetch_uid($uid);
+        }
+      }
+      $lastloop = 1;
+    }
+  }
   return $ret;
-
 }
 
 sub keycomp {
