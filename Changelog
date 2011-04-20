@@ -18,8 +18,11 @@ msva-perl (0.9~pre) upstream;
     packet generation and parsing.
   * Parse and make use of X.509 PGPExtension if present in X.509 public
     key carrier.
+  * Fix HUP server restart when used with Net::Server 0.99
+  * Crypt::Monkeysphere::Keytrans has the start of some key/certificate
+    conversion routines.
 
- -- Daniel Kahn Gillmor <dkg@fifthhorseman.net>  Mon, 14 Mar 2011 01:07:50 -0400
+ -- Daniel Kahn Gillmor <dkg@fifthhorseman.net>  Wed, 20 Apr 2011 01:48:20 -0400
 
 msva-perl (0.8) upstream;
 
