@@ -15,13 +15,40 @@ Arguments
 
      Param hash, all optional.
 
-     context => 'e-mail' | 'https' | 'ssh', etc.
-			control what counts as a suitable user IDs.
+     context => 'e-mail|https|ssh|...'
+			control what counts as suitable user IDs and key capabilities.
 
      kspolicy => 'always|never|unlessvalid'
-			when to fetch keys from keyserver.
+			when to fetch keys and key updates from keyserver.
 
   (plus arguments for Crypt::Monkeysphere::{Keyserver,Logger}::new )
+
+=head2 lookup
+
+Arguments
+
+    Param hash.
+
+    uid => (mandatory) OpenPGP User ID desired.
+
+    fpr => fingerprint of the key to compare
+
+    key => hash of pubkey parameters as Math::BigInt values
+
+one of either fpr or key must be supplied.
+
+Return Value
+
+    Returns a hashref
+
+    If the lookup succeeded, then the hashref has a key named
+    valid_key that points to a hashref { fingerprint => $fpr, val =>
+    $validity }.
+
+    If no fully-valid keys+userid were found, but some keys matched
+    with less-than-valid user IDs, then the hashref has a key named
+    subvalid_keys that points to an arrayref of { fingerprint => $fpr,
+    val => $validity } hashrefs.
 
 =cut
 
@@ -58,79 +85,66 @@ sub test_capable {
   return 0;
 }
 
-sub query{
+sub _tryquery {
+  my $self=shift;
+  my %args=@_;
+
+  my $uid=$args{uid} || croak "uid argument is mandatory";
+  my $fpr=$args{fpr};
+  my $key=$args{key};
+  defined($fpr) || defined($key) || croak "Must supply either a fingerprint or a key";
+
+  my $subvalid_keys = [];
+
+  my $gpgquery = defined($fpr) ? '0x'.$fpr : '='.$uid;
+
+  foreach my $gpgkey ($self->{gnupg}->get_public_keys($gpgquery)) {
+    my $validity = '-';
+    foreach my $tryuid ($gpgkey->user_ids) {
+      if ($tryuid->as_string eq $uid) {
+        $validity = $tryuid->validity;
+      }
+    }
+    # treat primary keys just like subkeys:
+    foreach my $subkey ($gpgkey, @{$gpgkey->subkeys}) {
+      if ((defined($key) && $self->keycomp($key, $subkey)) ||
+          (defined($fpr) && ($subkey->fingerprint->as_hex_string eq $fpr))) {
+        $self->log('verbose', "key 0x%s matches...\n",$subkey->hex_id);
+        if ($self->test_capable($subkey) ) {
+          if ($validity =~ /^[fu]$/) {
+            $self->log('verbose', "...and is fully valid!\n");
+            # we have a key that matches with a valid userid -- no need to look further.
+            return {valid_key => { fingerprint => $subkey->fingerprint, val => $validity }};
+          } else {
+            $self->log('verbose', "...but is not fully valid (%s).\n",$validity);
+            push(@{$subvalid_keys},
+                 {fingerprint => $subkey->fingerprint, val => $validity });
+          }
+        }
+      }
+    }
+  }
+  return { subvalid_keys => $subvalid_keys };
+}
+
+sub lookup {
   my $self=shift;
   my %opts=@_;
 
-  my $uid=$opts{uid} || croak "uid argument is mandatory";
-  my $fpr=$opts{fpr};
-  my $key=$opts{key};
+  if ($self->{kspolicy} eq 'unlessvalid') {
+    my $ret = $self->_tryquery(uid => $opts{uid}, fpr => $opts{fpr}, key => $opts{key}, subvalid => 0);
+    return $ret
+      if exists($ret->{valid_key});
+  };
 
-  my $gpgquery = defined($fpr) ?  '0x'.$fpr : '='.$uid;
-
-  my $ret= { valid_keys => [],
-	     subvalid_keys => [] };
-
-  # setup variables
-  my $lastloop = 0;
-  my $foundvalid = 0;
-
-  if ($self->{kspolicy} eq 'always') {
-    if (defined $fpr) {
-      $self->fetch_fpr($fpr);
+  if ($self->{kspolicy} ne 'never') {
+    if (defined($opts{fpr})) {
+      $self->fetch_fpr($opts{fpr});
     } else {
-      $self->fetch_uid($uid);
-    }
-    $lastloop = 1;
-  } elsif ($self->{kspolicy} eq 'never') {
-    $lastloop = 1;
-  }
-
-  while (1) {
-    foreach my $gpgkey ($self->{gnupg}->get_public_keys($gpgquery)) {
-      my $validity = '-';
-      foreach my $tryuid ($gpgkey->user_ids) {
-	if ($tryuid->as_string eq $uid) {
-	  $validity = $tryuid->validity;
-	}
-      }
-      # treat primary keys just like subkeys:
-      foreach my $subkey ($gpgkey, @{$gpgkey->subkeys}) {
-          if ((!defined($key) && (!defined($fpr))) ||
-	      (defined($key) && $self->keycomp($key, $subkey)) ||
-              (defined($fpr) && ($subkey->fingerprint->as_hex_string eq $fpr))) {
-	    $self->log('verbose', "key 0x%s matches...\n",$subkey->hex_id);
-	    if ($self->test_capable($subkey) ) {
-	      if ($validity =~ /^[fu]$/) {
-		$foundvalid = 1;
-		$self->log('verbose', "...and is fully valid!\n");
-		push(@{$ret->{valid_keys}},
-		     { fingerprint => $subkey->fingerprint, val => $validity });
-		last;
-	      } else {
-		$self->log('verbose', "...but is not fully valid (%s).\n",$validity);
-		push(@{$ret->{subvalid_keys}},
-		     {fingerprint => $subkey->fingerprint, val => $validity }) if $lastloop;
-	      }
-	    }
-	  }
-	}
-      last if ($foundvalid);
-    }
-    if ($lastloop || $foundvalid) {
-      last;
-    } else {
-      if (!$foundvalid) {
-        if (defined $fpr) {
-          $self->fetch_fpr($fpr);
-        } else {
-          $self->fetch_uid($uid);
-        }
-      }
-      $lastloop = 1;
+      $self->fetch_uid($opts{uid});
     }
   }
-  return $ret;
+  return $self->_tryquery(uid => $opts{uid}, fpr => $opts{fpr}, key => $opts{key}, subvalid => 1);
 }
 
 sub keycomp {

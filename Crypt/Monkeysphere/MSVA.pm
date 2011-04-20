@@ -675,11 +675,11 @@
 						     gnupg=>$gnupg,
 						     logger=>$logger);
 
-    my $uid_query=$validator->query(uid=>$uid,fpr=>$fpr, key=>$key );
+    my $uid_query=$validator->lookup(uid=>$uid,fpr=>$fpr,key=>$key);
 
     # only show the marginal UI if the UID of the corresponding
     # key is not fully valid.
-    if (scalar(@{$uid_query->{valid_keys}}) > 0) {
+    if (defined($uid_query->{valid_key})) {
       $ret->{valid} = JSON::true;
       $ret->{message} = sprintf('Successfully validated "%s" through the OpenPGP Web of Trust.', $uid);
     } else {

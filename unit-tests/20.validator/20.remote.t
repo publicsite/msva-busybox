@@ -24,11 +24,11 @@ my $validator=new Crypt::Monkeysphere::Validator(gnupg=>$gnupg,
 
 isa_ok($validator,'Crypt::Monkeysphere::Validator');
 
-my $return=$validator->query(uid=>$uid);
+my $return=$validator->lookup(uid=>$uid,fpr=>'F8841978E8FA6FC65D3405155A5EA5837BD0B401');
 
 print Dumper($return) if ($ENV{MSTEST_DEBUG});
 
-ok(scalar @{$return->{valid_keys}} > 0);
+ok(defined($return->{valid_key}));
 
 
 
