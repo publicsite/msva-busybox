@@ -147,6 +147,67 @@ sub lookup {
   return $self->_tryquery(uid => $opts{uid}, fpr => $opts{fpr}, key => $opts{key});
 }
 
+sub valid_binding {
+  my $self = shift;
+  my $uid  = shift;
+  my $gpgkey = shift;
+
+  my $validity = '-';
+  foreach my $tryuid ($gpgkey->user_ids) {
+    if ($tryuid->as_string eq $uid) {
+      return 1
+        if $tryuid->validity =~ /^[fu]$/;
+    }
+  }
+  return 0;
+}
+
+=pod
+
+=head2 findall
+
+Find all keys with appropriate capabilities and valid bindings to the given uid.
+
+=cut
+
+sub findall{
+  my $self=shift;
+  my $uid=shift;
+
+  $self->fetch_uid($uid) if ($self->{kspolicy} eq 'always');
+
+  my @keys = $self->_findall($uid);
+
+  if (scalar(@keys) == 0 and $self->{kspolicy} eq 'unlessvalid'){
+    $self->fetch_uid($uid);
+    @keys=$self->_findall($uid);
+  }
+
+  return @keys;
+}
+
+sub _findall {
+  my $self=shift;
+  my $uid=shift;
+
+  my @keys;
+  my $x = 0;
+
+  foreach my $gpgkey ($self->{gnupg}->get_public_keys('='.$uid)) {
+    if ($self->valid_binding($uid, $gpgkey)) {
+      foreach my $subkey ($gpgkey, @{$gpgkey->subkeys()}) {
+	if ($self->test_capable($subkey) ) {
+	  $self->log('verbose', "key 0x%s is capable...\n",$subkey->hex_id);
+
+	  push(@keys, $subkey);
+	}
+      }
+    }
+  }
+  return @keys;
+}
+
+
 sub keycomp {
   my $self=shift;
   my $rsakey = shift;
