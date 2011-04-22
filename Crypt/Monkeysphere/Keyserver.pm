@@ -95,7 +95,6 @@ sub _read_keyserver_from_gpg_conf() {
     $self->log('info', "Did not find GnuPG configuration file while looking for keyserver '%s'\n", $gpgconf);
   }
   return undef;
-  
 }
 
 

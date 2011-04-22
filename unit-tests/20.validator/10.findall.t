@@ -33,9 +33,6 @@ my $uid='Joe Tester <joe@example.net>';
 
 my @keys=$validator->findall($uid);
 
-
-
 ok(scalar @keys >= 3);
-
 
 end:
