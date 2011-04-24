@@ -1,7 +1,7 @@
 # -*- perl -*-
 use Test::More;
 
-use Crypt::Monkeysphere::Keytrans;
+use Crypt::Monkeysphere::Keytrans qw(GnuPGKey_to_OpenSSH_pub);
 use GnuPG::Interface;
 use File::Temp qw(tempdir);
 
@@ -47,7 +47,7 @@ waitpid($pid, 0);
 my @keys = $gnupg->get_public_keys();
 
 foreach $key (@keys) {
-  my $output = Crypt::Monkeysphere::Keytrans::GnuPGKey_to_OpenSSH_pub($key);
+  my $output = GnuPGKey_to_OpenSSH_pub($key);
   is($sshdata, $output);
 }
 
