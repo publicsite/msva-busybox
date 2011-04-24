@@ -7,7 +7,7 @@ use Carp;
 use MIME::Base64;
 
 use Exporter qw(import);
-our @EXPORT_OK=qw();
+our @EXPORT_OK=qw(GnuPGKey_to_OpenSSH_pub);
 
 
 # takes a Math::BigInt and returns it properly packed for openssh output.
@@ -47,6 +47,20 @@ sub openssh_rsa_pubkey_pack {
 	openssh_mpi_pack($modulus);
 }
 
+=pod
+
+=head2 GnuPGKey_to_OpenSSH_pub
+
+Translate a GnuPG::Key to a string suitable for an OpenSSH .pub file
+
+B<Note> you will need to add "ssh-rsa " to the front to make OpenSSH
+recognize it.
+
+=head3 Arguments
+
+key - GnuPG::Key object
+
+=cut
 
 sub GnuPGKey_to_OpenSSH_pub {
   my $key = shift;
@@ -56,8 +70,6 @@ sub GnuPGKey_to_OpenSSH_pub {
 
   croak("Not an RSA key!")
     unless $key->algo_num == 1;
-
-  use Data::Dumper;
 
   return encode_base64(openssh_rsa_pubkey_pack(@{$key->pubkey_data}), '');
 }
