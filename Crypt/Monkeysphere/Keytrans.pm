@@ -7,7 +7,7 @@ use Carp;
 use MIME::Base64;
 
 use Exporter qw(import);
-our @EXPORT_OK=qw(GnuPGKey_to_OpenSSH_pub);
+our @EXPORT_OK=qw(GnuPGKey_to_OpenSSH_pub GnuPGKey_to_OpenSSH_fpr);
 
 
 # takes a Math::BigInt and returns it properly packed for openssh output.
@@ -45,6 +45,41 @@ sub openssh_rsa_pubkey_pack {
   return openssh_mpi_pack(Math::BigInt->new('0x'.unpack('H*', "ssh-rsa"))).
       openssh_mpi_pack($exponent).
 	openssh_mpi_pack($modulus);
+}
+
+# calculate/print the fingerprint of an openssh-style keyblob:
+
+sub sshfpr {
+  my $keyblob = shift;
+  use Digest::MD5;
+  return join(':', map({unpack("H*", $_)} split(//, Digest::MD5::md5($keyblob))));
+}
+
+=pod
+
+=head2 GnuPGKey_to_OpenSSH_fpr
+
+Find the openssh compatible fingerprint of an (RSA) GnuPG::Key
+
+B<Note> you will need to add add bits and (RSA) to the string to
+exactly match the output of ssh-keygen -l.
+
+=head3 Arguments
+
+key - GnuPG::Key object
+
+=cut
+
+sub GnuPGKey_to_OpenSSH_fpr {
+  my $key = shift;
+
+  croak("not a GnuPG::Key!")
+    unless($key->isa('GnuPG::Key'));
+
+  croak("Not an RSA key!")
+    unless $key->algo_num == 1;
+
+  return sshfpr(openssh_rsa_pubkey_pack(@{$key->pubkey_data}), '');
 }
 
 =pod
