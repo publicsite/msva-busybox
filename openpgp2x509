@@ -1,0 +1,348 @@
+#!/usr/bin/perl
+
+# Author: Daniel Kahn Gillmor <dkg@fifthhorseman.net>
+# Copyright: 2011
+# License: GPL-3+
+
+# WARNING: This is very rough code!  the interface WILL change
+# dramatically.  The only thing I can commit to keeping stable are the
+# OIDs.
+
+# Use this code to take an OpenPGP certificate (pubkey) and emit a
+# corresponding OpenPGP-validated X.509 certificate.
+
+# Usage: openpgp2x509 ssh://lair.fifthhorseman.net
+
+use strict;
+use warnings;
+use Crypt::X509 0.50;
+use Math::BigInt;
+use GnuPG::Interface 0.43;
+use Regexp::Common qw /net/;
+use MIME::Base64;
+
+my $cert = Crypt::X509::_init('Certificate');
+$cert->configure('encode' => { 'time' => 'raw' } );
+my $pgpe = Crypt::X509::_init('PGPExtension');
+$pgpe->configure('encode' => { 'time' => 'raw' } );
+my $rsapubkeyinfo = Crypt::X509::_init('RSAPubKeyInfo');
+
+my $dntypes = { 'CN' => '2.5.4.3', # common name
+                'emailAddress' => '1.2.840.113549.1.9.1', # e-mail address
+                'C' => '2.5.4.6', # country
+                'ST' => '2.5.4.8', # state
+                'L' => '2.5.4.7', # locality
+                'O' => '2.5.4.10', # organization
+                'OU' => '2.5.4.11', # organization unit (often used as a comment)
+            };
+
+my $algos = {
+             'RSA' => '1.2.840.113549.1.1.1',
+             'RSAwithMD2' => '1.2.840.113549.1.1.2',
+             'RSAwithMD4' => '1.2.840.113549.1.1.3',
+             'RSAwithMD5' => '1.2.840.113549.1.1.4',
+             'RSAwithSHA1' => '1.2.840.113549.1.1.5',
+             'OAEP' => '1.2.840.113549.1.1.6',
+             'RSAwithSHA256' => '1.2.840.113549.1.1.11',
+             'RSAwithSHA384' => '1.2.840.113549.1.1.12',
+             'RSAwithSHA512' => '1.2.840.113549.1.1.13',
+             'RSAwithSHA224' => '1.2.840.113549.1.1.14',
+             'NullSignatureUseOpenPGP' => '1.3.6.1.4.1.37210.1.1',
+             'OpenPGPCertificateEmbedded' => '1.3.6.1.4.1.37210.1.2',
+
+            };
+
+# NullSignatureUseOpenPGP: this X509 certificate is not
+# self-verifiable.  It must be verified by fetching certificate
+# material from OpenPGP keyservers or from the user's private OpenPGP
+# keyring.
+
+# The identity material and usage in the OpenPGP keyservers SHOULD be
+# tested against the context in which the certificate is being used.
+# If no context information is explicitly available to the
+# implementation checking the certificate's validity, the
+# implementation MUST assume that the context is the full set of
+# possible contexts asserted by the X.509 material itself (is this
+# doable?)
+
+# 0) certificate validity ambiguity -- X.509 certificates are
+#    generally considered to be entirely valid or entirely invalid.
+#    OpenPGP certificates can have some User IDs that are valid, and
+#    others that are not.  If an implementation is asked to return a
+#    simple boolean response to a validity inquiry, without knowing
+#    the context in which the certificate was proposed for use, it
+#    MUST validate the full conjunction of all assertions made in the
+#    X.509 certificate itself in order to return "true".
+
+
+
+# OpenPGPCertificateEmbedded: the "signature" material in the X.509
+# certificate is actually a set of OpenPGP packets corresponding to a
+# complete "transferable public key" as specified in
+# https://tools.ietf.org/html/rfc4880#section-11.1 , in "raw"
+# (non-ascii-armored) form.
+
+# If it were implemented, it would be the same as
+# NullSignatureUseOpenPGP, but with the OpenPGP material transported
+# in-band in addition.
+
+## NOTE: There is no implementation of the OpenPGPCertificateEmbedded,
+## and maybe there never will be.  Another approach would be to
+## transmitting OpenPGP signature packets in the TLS channel itself,
+## with an extension comparable to OCSP stapling.
+
+# the OpenPGPCertificateEmbedded concept has a few downsides:
+
+# 1) data duplication -- the X.509 Subject Public Key material is
+#    repeated (either in the primary key packet, or in one of the
+#    subkey packets).  The X.509 Subject material (and any
+#    subjectAltNames) are also duplicated in the User ID packets.
+#    This increases the size of the certificate.  It also creates
+#    potential inconsistencies.  If the X.509 Subject Public Key
+#    material is not found found in the OpenPGP Transferable Public
+#    Key (either as a primary key or as a subkey), conforming
+#    implementations MUST reject the certificate.
+
+# 2) the requirement for out-of-band verification is not entirely
+#    removed, since conformant implementations may want to check the
+#    public keyservers for things like revocation certificates.
+
+
+
+
+# this is a 5 followed by a 0.  it fits into the "Parameters" section
+# of an ASN.1 algorithmIdentifier object. what does this mean?
+# I think it means the NULL type.
+my $noparams = sprintf('%c%c', 5, 0);
+
+my $extensions = { 'PGPExtension' => '1.3.6.1.4.1.3401.8.1.1' };
+
+my $gnupg = GnuPG::Interface::->new();
+$gnupg->options->quiet(1);
+$gnupg->options->batch(1);
+
+sub err {
+  printf STDERR @_;
+}
+
+
+sub ts2Time {
+  my $ts = shift;
+
+  if (!defined($ts)) {
+    # see https://tools.ietf.org/html/rfc5280#section-4.1.2.5
+    return {'generalTime' => '99991231235959Z' };
+  } else {
+    my ($sec,$min,$hour,$mday,$mon,$year) = gmtime($ts);
+    $year += 1900;
+    if (($year < 1950) ||
+        ($year >= 2050)) {
+      return {'generalTime' => sprintf('%04d%02d%02d%02d%02d%02dZ', $year, $mon+1, $mday, $hour, $min, $sec) };
+    } else {
+      return {'utcTime' => sprintf('%02d%02d%02d%02d%02d%02dZ', ($year%100), $mon+1, $mday, $hour, $min, $sec) };
+    }
+  }
+}
+
+sub ts2ISO8601 {
+  my $ts = shift;
+  $ts = time()
+    if (!defined($ts));
+  my ($sec,$min,$hour,$mday,$mon,$year) = gmtime($ts);
+  $year += 1900;
+  return sprintf('%04d-%02d-%02dT%02d:%02d:%02dZ', $year, $mon+1, $mday, $hour, $min, $sec);
+};
+
+sub makeX509CertForUserID {
+  my $userid = shift;
+  my $hostname;
+  my $protocol;
+  my $emailaddress;
+  my $humanname;
+  my $subject;
+  my $ret = [];
+
+  if ($userid =~ /^\s+/) {
+    err("We will not process User IDs with leading whitespace\n");
+    return $ret;
+  }
+  if ($userid =~ /\s+$/) {
+    err("We will not process User IDs with trailing whitespace\n");
+    return $ret;
+  }
+  if ($userid =~ /\n/) {
+    err("We will not process User IDs containing newlines\n");
+    return $ret;
+  }
+  # FIXME: do we want to rule out any other forms of User ID?
+
+
+  if ($userid =~ /^(.*)\s+<([^><@\s]+\@$RE{net}{domain})>$/ ) {
+    # this is a typical/expected OpenPGP User ID.
+    $humanname = $1;
+    $emailaddress = $2;
+    $subject = [
+                [ {
+                   'type' => $dntypes->{'CN'},
+                   'value' => {
+                               'printableString' => $humanname,
+                              },
+                  } ],
+                [ {
+                   'type' => $dntypes->{'emailAddress'},
+                   'value' => {
+                               'ia5String' => $emailaddress,
+                              },
+                  } ],
+               ];
+  } elsif ($userid =~ /^(https|ssh|smtps?|ike|postgresql|imaps?|submission):\/\/($RE{net}{domain})$/) {
+    $protocol = $1;
+    $hostname = $2;
+    $subject = [ [ {
+                    'type' => $dntypes->{'CN'},
+                    'value' => {
+                                'printableString' => $hostname
+                               },
+                   } ] ];
+  } else {
+    # what should we do here?  Maybe we just assume this is a bare Human Name?
+    err("Assuming '%s' is a bare human name.\n", $userid);
+    $humanname = $userid;
+  }
+
+  foreach my $gpgkey ($gnupg->get_public_keys('='.$userid)) {
+    my $validity = '-';
+    my @sans;
+    foreach my $tryuid ($gpgkey->user_ids) {
+      if ($tryuid->as_string eq $userid) {
+        $validity = $tryuid->validity;
+      }
+
+      if (defined($protocol) &&
+          ($tryuid->validity =~ /^[fu]$/) &&
+          ($tryuid =~ /^$protocol\:\/\/($RE{net}{domain})/ )) {
+        push(@sans, $2);
+      }
+    }
+    if ($validity !~ /^[fu]$/) {
+      err("key 0x%s only has validity %s for User ID '%s' (needs full or ultimate validity)\n", $gpgkey->fingerprint->as_hex_string, $validity, $userid);
+      next;
+    }
+
+    # treat primary keys just like subkeys:
+    foreach my $subkey ($gpgkey, @{$gpgkey->subkeys}) {
+      if ($subkey->{algo_num} != 1) {
+        err("key 0x%s is algorithm %d (not RSA) -- we currently only handle RSA\n", $subkey->fingerprint->as_hex_string, $subkey->algo_num);
+        next;
+      }
+      # FIXME: reject/skip over revoked/expired keys.
+
+      my $pubkey = { 'modulus' => @{$subkey->pubkey_data}[0],
+                     'exponent' => @{$subkey->pubkey_data}[1],
+                   };
+      my $vnotbefore = $subkey->creation_date;
+
+      my $vnotafter = $subkey->expiration_date;
+      # expiration date should be the minimum of the primary key and the subkey:
+      if (!defined($vnotafter)) {
+        $vnotafter = $gpgkey->expiration_date;
+      } elsif (defined($gpgkey->expiration_date)) {
+        $vnotafter = $gpgkey->expiration_date
+          if ($gpgkey->expiration_date < $vnotafter);
+      }
+
+      my $cnotbefore = ts2Time($vnotbefore);
+      my $cnotafter = ts2Time($vnotafter);
+
+      my $pgpeval = $pgpe->encode({ 'version' => 0, 'keyCreation' => $cnotbefore });
+      print $pgpe->{error}
+        if (!defined($pgpeval));
+
+      my $pubkeybitstring = $rsapubkeyinfo->encode($pubkey);
+      print $rsapubkeyinfo->{error}
+        if (!defined($pubkeybitstring));
+
+      my @extensions;
+      push(@extensions, { 'extnID' => $extensions->{'PGPExtension'},
+                          'extnValue' => $pgpeval
+                        });
+
+      # FIXME: base some keyUsage extensions on the type of User ID
+      # and on the usage flags of the key in question.
+
+      # if 'a' is present
+      # if protocol =~ /^http|ssh|smtps?|postgresql|imaps?|submission$/ then set TLS server eKU + ???
+      # if protocol eq 'ike' then ??? (ask micah)
+      # if protocol =~ /^smtps?$/ then set TLS client + ???
+      # if defined($humanname) then set TLS client + ???
+
+      # if 'e' is present:
+      # ???
+
+      # if 's' is present:
+      # ???
+
+      # if 'c' is present: I think we should never specify CA:TRUE or
+      # CA:FALSE in these certificates, since (a) we do not expect
+      # these keys to actually be making X.509-style certifications,
+      # but (b) we also don't want to assert that they can't make
+      # any certifications whatsoever.
+
+
+      # FIXME: add subjectAltName that matches the type of information
+      # we believe we're working with (see the cert-id draft).
+
+      # FIXME: if @sans is present, add them as subjectAltNames (do we
+      # want to do this? maybe this should be optional).
+
+
+      my $newcert = {
+                     'tbsCertificate' => {
+                                          'version' => 2, # 0 == version 1, 1 == version 2, 2 == version 3
+                                          # this is a convenient way to pass the fpr too.
+                                          'serialNumber' => Math::BigInt->new('0x'.$subkey->fingerprint->as_hex_string),
+                                          'subjectPublicKeyInfo' => {
+                                                                     'algorithm' => {
+                                                                                     'parameters' => $noparams,
+                                                                                     'algorithm' => $algos->{'RSA'},
+                                                                                    },
+                                                                     'subjectPublicKey' => $pubkeybitstring,
+                                                                    },
+                                          'validity' => {
+                                                         'notAfter' => $cnotafter,
+                                                         'notBefore' => $cnotbefore,
+                                                        },
+                                          'signature' => { # maybe we should make up our own "signature algorithm" here?
+                                                          'parameters' => $noparams,
+                                                          'algorithm' => $algos->{'NullSignatureUseOpenPGP'}
+                                                         },
+                                          'subject' => {
+                                                        'rdnSequence' => $subject,
+                                                       },
+                                          'issuer' => {
+                                                       'rdnSequence' => [ [ {
+                                                                           'type' => $dntypes->{'OU'},
+                                                                           'value' => { 'printableString' => sprintf('Please check the OpenPGP keyservers for certification information. (certificate generated on %s)', ts2ISO8601(time())) },
+                                                                          } ] ],
+                                                      },
+                                          'extensions' => \@extensions,
+                                         },
+                     'signature' => 'use OpenPGP',
+                     'signatureAlgorithm' => {
+                                              'parameters' => $noparams,
+                                              'algorithm' => $algos->{'NullSignatureUseOpenPGP'}
+                                             }
+                    };
+
+      my $dd = $cert->encode($newcert);
+
+      push(@{$ret}, $dd);
+    }
+  }
+  return $ret;
+}
+
+
+foreach $cert ( @{ makeX509CertForUserID($ARGV[0]) } ) {
+  printf("-----BEGIN CERTIFICATE-----\n%s-----END CERTIFICATE-----\n", encode_base64($cert));
+}

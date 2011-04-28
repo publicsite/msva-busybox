@@ -46,7 +46,7 @@
     }
 
     foreach my $keyfpr (@subvalid_key_fprs) {
-      my $fprx = sprintf('0x%.40s', $keyfpr->{fpr}->as_hex_string());
+      my $fprx = sprintf('0x%.40s', $keyfpr->{fingerprint}->as_hex_string());
       $logger->log('debug', "checking on %s\n", $fprx);
       foreach my $gpgkey ($gnupg->get_public_keys_with_sigs($fprx)) {
         $logger->log('debug', "found key %.40s\n", $gpgkey->fingerprint->as_hex_string);
@@ -72,7 +72,7 @@
               if ($cert->hex_id =~ /^([A-Fa-f0-9]{16})$/) {
                 my $certid = $1;
                 # disregard self-certifications (see MS # 2569):
-                if (lc($certid) eq lc(substr($keyfpr->{fpr}->as_hex_string(), -16))) {
+                if (lc($certid) eq lc(substr($keyfpr->{fingerprint}->as_hex_string(), -16))) {
                   $logger->log('debug', "found self-sig 0x%.16s\n", $certid);
                   next;
                 }
@@ -159,7 +159,7 @@ Would you like to temporarily accept this certificate for this peer?",
 Peer's OpenPGP key fingerprint: 0x%.40s
 GnuPG calculated validity for the peer: %s",
                             $uid,
-                            $keyfpr->{fpr}->as_hex_string,
+                            $keyfpr->{fingerprint}->as_hex_string,
                             $keyfpr->{val},
                            );
           # FIXME: what about revoked certifications?

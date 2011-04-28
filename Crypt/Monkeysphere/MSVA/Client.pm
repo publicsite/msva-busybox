@@ -26,7 +26,7 @@
   use strict;
   use warnings;
   use JSON;
-  use Crypt::Monkeysphere::MSVA::Logger;
+  use Crypt::Monkeysphere::Logger;
   use LWP::UserAgent;
   use HTTP::Request;
   use Module::Load::Conditional;
@@ -34,6 +34,20 @@
   sub log {
     my $self = shift;
     $self->{logger}->log(@_);
+  }
+
+  sub agent_info {
+    my $self = shift;
+    my $requesturl = $self->{socket} . '/';
+    my $request = HTTP::Request->new('GET', $requesturl);
+    $self->log('debug', "Contacting MSVA at %s\n", $requesturl);
+    my $response = $self->{ua}->request($request);
+    my $status = $response->status_line;
+    my $ret;
+    if ($status eq '200 OK') {
+      $ret = from_json($response->content);
+    }
+    return $status, $ret;
   }
 
   sub query_agent {
@@ -91,35 +105,12 @@
     $self->log('debug', "pkctype: %s\n", $pkctype);
 
     my $transformed_data;
-
     if ($pkctype eq 'x509der') {
-      if ($self->{logger}->is_logging_at('verbose')) {
-        if (Module::Load::Conditional::can_load('modules' => { 'Crypt::X509' => undef })) {
-          require Crypt::X509;
-          my $cert = Crypt::X509->new(cert => $pkcdata);
-          if ($cert->error) {
-            $self->log('error', "failed to parse this X.509 cert before sending it to the agent\n");
-          } else {
-            $self->log('info', "x509der certificate loaded.\n");
-            $self->log('verbose', "cert subject: %s\n", $cert->subject_cn());
-            $self->log('verbose', "cert issuer: %s\n", $cert->issuer_cn());
-            $self->log('verbose', "cert pubkey algo: %s\n", $cert->PubKeyAlg());
-            $self->log('verbose', "cert pubkey: %s\n", unpack('H*', $cert->pubkey()));
-          }
-        } else {
-          $self->log('verbose', "X.509 cert going to agent but we cannot inspect it without Crypt::X509\n");
-        }
-      }
-      # remap raw pkc data into numeric array
+      # remap raw der data into numeric array
       $transformed_data = [map(ord, split(//,$pkcdata))];
-    } elsif ($pkctype eq 'x509pem' ||
-             $pkctype eq 'opensshpubkey' ||
-             $pkctype eq 'rfc4716'
-            ) {
-      $transformed_data = $pkcdata;
     } else {
-      $self->log('error', "unknown pkc type '%s'.\n", $pkctype);
-    };
+      $transformed_data = $pkcdata;
+    }
 
     my $ret = {
                context => $context,
@@ -143,7 +134,7 @@
     my %args = @_;
     my $self = {};
 
-    $self->{logger} = Crypt::Monkeysphere::MSVA::Logger->new($args{log_level});
+    $self->{logger} = Crypt::Monkeysphere::Logger->new($args{log_level});
     $self->{socket} = $args{socket};
     $self->{socket} = 'http://localhost:8901'
       if (! defined $self->{socket} or $self->{socket} eq '');

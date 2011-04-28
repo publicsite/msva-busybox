@@ -25,7 +25,7 @@ srcdir=$(dirname $0)/..
 
 REPS=5
 
-CERTTYPES="x509pem x509der opensshpubkey rfc4716"
+CERTTYPES="x509pem x509der opensshpubkey rfc4716 openpgp4fpr"
 
 printf "testing %d reps of simple/quick true/false:\n" "$REPS"
 for n in $(seq 1 "$REPS") ; do
@@ -71,11 +71,21 @@ done
 
 # translate X and Y's keys into OpenPGP cert
 for name in x y; do
-    PEM2OPENPGP_USAGE_FLAGS=authenticate pem2openpgp "https://${name}.example.net" < "${WORKDIR}/sec/${name}.key" | gpg --import
+    uid="https://${name}.example.net"
+    PEM2OPENPGP_USAGE_FLAGS=authenticate pem2openpgp "$uid" < "${WORKDIR}/sec/${name}.key" | gpg --import
+    # export fingerprint for openpgp4fpr
+    gpg --with-colons --fingerprint "=${uid}" | grep '^fpr:' | cut -d: -f10 > "${WORKDIR}/pkc/${name}.openpgp4fpr"
 done
+# touch an empty openpgp4fpr file for z, who is not supposed to be in
+# the monkeysphere at all, and therefore has no openpgp4fpr
+touch "${WORKDIR}/pkc/z.openpgp4fpr"
 # and the same for the clients A and B
 for name in a b; do
-    PEM2OPENPGP_USAGE_FLAGS=authenticate pem2openpgp "${name} <${name}@example.net>" < "${WORKDIR}/sec/${name}.key" | gpg --import
+    uid="${name} <${name}@example.net>"
+    # make user keys 'a' and 's' capable
+    PEM2OPENPGP_USAGE_FLAGS=authenticate,sign pem2openpgp "$uid" < "${WORKDIR}/sec/${name}.key" | gpg --import
+    # export fingerprint for openpgp4fpr
+    gpg --with-colons --fingerprint "=${uid}" | grep '^fpr:' | cut -d: -f10 > "${WORKDIR}/pkc/${name}.openpgp4fpr"
 done
 
 runtests() {
@@ -83,12 +93,14 @@ runtests() {
     for name in x y z; do
         for ctype in $CERTTYPES; do
             ! "${srcdir}"/test-msva msva-perl "${srcdir}"/test-msva msva-query-agent https "${name}.example.net" "${ctype}" < "${WORKDIR}/pkc/x.${ctype}"
+	    echo
         done
     done
     # A shouldn't validate as A or B:
     for name in a b; do
         for ctype in $CERTTYPES; do
             ! "${srcdir}"/test-msva msva-perl "${srcdir}"/test-msva msva-query-agent https "${name} <${name}@example.net>" "${ctype}" client < "${WORKDIR}/pkc/a.${ctype}"
+	    echo
         done
     done
     
@@ -99,29 +111,38 @@ runtests() {
     echo "Testing bad data:"
     # it should fail if we pass it the wrong kind of data:
     ! "${srcdir}"/test-msva msva-perl "${srcdir}"/test-msva msva-query-agent https x.example.net "x509der" < "${WORKDIR}/pkc/x.x509pem"
+    echo
     ! "${srcdir}"/test-msva msva-perl "${srcdir}"/test-msva msva-query-agent https x.example.net "x509pem" < "${WORKDIR}/pkc/x.x509der"
+    echo
     echo "Done testing bad data."
         
     for ctype in $CERTTYPES; do 
     # X should now validate as X
         "${srcdir}"/test-msva msva-perl "${srcdir}"/test-msva msva-query-agent https x.example.net "${ctype}" < "${WORKDIR}/pkc/x.${ctype}"
+	echo
         "${srcdir}"/test-msva msva-perl "${srcdir}"/test-msva msva-query-agent https 'a <a@example.net>' "${ctype}" client < "${WORKDIR}/pkc/a.${ctype}"
+	# also test "e-mail" context
+        "${srcdir}"/test-msva msva-perl "${srcdir}"/test-msva msva-query-agent e-mail 'a <a@example.net>' "${ctype}" < "${WORKDIR}/pkc/a.${ctype}"
         
     # but X should not validate as Y or Z:
         for name in x y z; do
             ! "${srcdir}"/test-msva msva-perl "${srcdir}"/test-msva msva-query-agent https "${name}.example.net" "${ctype}" < "${WORKDIR}/pkc/x.${ctype}"
+	    echo
         done
         # and A shouldn't validate as B:
         ! "${srcdir}"/test-msva msva-perl "${srcdir}"/test-msva msva-query-agent https "b <b@example.net>" "${ctype}" client < "${WORKDIR}/pkc/a.${ctype}"
+	echo
 
     # neither Y nor Z should validate as any of them:
         for src in y z; do
             for targ in x y z; do
                 ! "${srcdir}"/test-msva msva-perl "${srcdir}"/test-msva msva-query-agent https "${targ}.example.net" "${ctype}" < "${WORKDIR}/pkc/${src}.${ctype}"
+		echo
             done
         done
         # B should also still not validate as itself:
         ! "${srcdir}"/test-msva msva-perl "${srcdir}"/test-msva msva-query-agent https "b <b@example.net>" "${ctype}" client < "${WORKDIR}/pkc/b.${ctype}"
+	echo
     done
 }
 

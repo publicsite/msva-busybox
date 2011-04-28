@@ -1,0 +1,7 @@
+To run all unit tests, 
+
+   perl run-tests.pl
+
+to run a subset,
+
+   perl run-tests.pl dir1 [dir2..]

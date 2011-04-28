@@ -21,16 +21,46 @@ use strict;
 
 use Crypt::Monkeysphere::MSVA::Client;
 
+sub usage {
+  my $name = shift;
+
+  printf STDERR ("Usage: %s CONTEXT PEER PKC_TYPE [PEER_TYPE] < PKC_DATA
+       %s CONTEXT PEER PKC_TYPE PEER_TYPE PKC_DATA
+       %s --version
+", $name, $name, $name);
+}
+
 my $context = shift;
+if ((!defined($context)) ||
+    $context eq '--help') {
+  usage($0);
+  exit (defined($context) ? 0 : 1);
+} elsif ($context eq '--version') {
+  my $client = Crypt::Monkeysphere::MSVA::Client->new(
+						      socket => $ENV{MONKEYSPHERE_VALIDATION_AGENT_SOCKET},
+						      log_level => $ENV{MSVA_LOG_LEVEL},
+						     );
+  my ($status,$ret) = $client->agent_info();
+  $client->log('verbose', "status: %s\n", $status);
+  if (defined $ret) {
+    printf("%s", $ret->{server});
+    exit 0;
+  }
+  exit 1;
+}
+
 my $peer = shift;
 my $pkctype = shift;
 my $peertype = shift;
+my $pkcdata = shift;
 
-# load raw pkc data from stdin
-my $pkcdata = do {
-  local $/; # slurp!
-  <STDIN>;
-};
+if (!defined $pkcdata) {
+  # load raw pkc data from stdin
+  $pkcdata = do {
+    local $/; # slurp!
+    <STDIN>;
+  };
+}
 
 my $client = Crypt::Monkeysphere::MSVA::Client->new(
                                                     socket => $ENV{MONKEYSPHERE_VALIDATION_AGENT_SOCKET},
@@ -39,15 +69,20 @@ my $client = Crypt::Monkeysphere::MSVA::Client->new(
 
 my ($status,$ret) = $client->query_agent($context,$peer,$peertype,$pkctype,$pkcdata);
 
-$client->log('info', "status: %s\n", $status);
+$client->log('verbose', "status: %s\n", $status);
 if (defined $ret) {
   $client->log('info', "valid: %s\n", $ret->{valid});
   $client->log('info', "server: %s\n", $ret->{server});
-  printf("%s\n", $ret->{message});
-  exit 0
-    if ($ret->{valid});
+  printf("%s", $ret->{message});
+  if ($ret->{valid}) {
+    exit 0
+  } else {
+    exit 1;
+  }
+} else {
+  printf("%s", $status);
+  exit 100;
 }
-exit 1;
 
 __END__
 
@@ -58,6 +93,10 @@ msva-query-agent - query a Monkeysphere Validation Agent
 =head1 SYNOPSIS
 
 msva-query-agent CONTEXT PEER PKC_TYPE [PEER_TYPE] < /path/to/public_key_carrier
+
+msva-query-agent CONTEXT PEER PKC_TYPE PEER_TYPE PKC_DATA
+
+msva-query-agent --version
 
 =head1 ABSTRACT
 
@@ -72,8 +111,7 @@ indicates the validity (as determined by the agent) of the certificate
 for the specified purpose.  The agent's return message (if any) is
 emitted on stdout.
 
-The first three command-line arguments are all required, supplied in
-order, as follows:
+The various arguments are:
 
 =over 4
 
@@ -90,17 +128,21 @@ service, supply the host's full DNS name (e.g.  'foo.example.net')
 =item PKC_TYPE
 
 The format of public key carrier data provided on standard input
-(e.g. 'x509der', 'x509pem', 'opensshpubkey', 'rfc4716')
-
-=back
-
-The fourth argument is optional:
-
-=over 4
+(e.g. 'x509der', 'x509pem', 'opensshpubkey', 'rfc4716', 'openpgp4fpr')
 
 =item PEER_TYPE
 
-The type of peer we are inquiring about (e.g. 'client', 'server')
+The type of peer we are inquiring about (e.g. 'client', 'server',
+'peer').  This argument is optional and defaults will be used (based
+on CONTEXT) if it is not supplied.
+
+=item PKC_DATA
+
+This is the actual public key carrier data itself.  If less than five
+arguments are given, then the PKC_DATA is expected on stdin.  If five
+arguments are given, the fifth argument is interpreted as the
+PKC_DATA.  This is likely only useful for supplying an OpenPGP
+fingerprint with the 'openpgp4fpr' type.
 
 =back
 

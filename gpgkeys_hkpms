@@ -17,7 +17,7 @@ use warnings;
 
 { package Crypt::Monkeysphere::MSVA::HKPMS;
   use POSIX;
-  use Crypt::Monkeysphere::MSVA::Logger;
+  use Crypt::Monkeysphere::Logger;
   use Crypt::Monkeysphere::MSVA::Client;
   use Regexp::Common qw /net/;
   use Module::Load::Conditional;
@@ -262,7 +262,7 @@ use warnings;
     }
     my $self = { config => { },
                  args => [ ],
-                 logger => (defined($client) ? $client->{logger} : Crypt::Monkeysphere::MSVA::Logger::->new($default_log_level)),
+                 logger => (defined($client) ? $client->{logger} : Crypt::Monkeysphere::Logger::->new($default_log_level)),
                  cache => { },
                  client => $client,
                  actually_check => 1,

@@ -1,3 +1,29 @@
+msva-perl (0.9~pre) upstream;
+
+  [ Jameson Rollins ]
+  * Add "e-mail" context (checks for signing capability instead of
+    authentication) (closes MS #2688)
+  * Add "openpgp4fpr" pkc type for providing OpenPGP v4 fingerprint
+  * Add --version option to msva-query-agent
+
+  [ David Bremner ]
+  * Code refactoring:
+   - Crypt::Monkeysphere::MSVA::Logger into Crypt::Monkeysphere::Logger
+   - new Crypt::Monkeysphere::Validator
+   - unit tests and unit test harness
+
+  [ Daniel Kahn Gillmor ]
+  * Now depending on Crypt::X509 0.50 for pubkey components directly.
+  * Crypt::Monkeysphere::OpenPGP for helper functions in
+    packet generation and parsing.
+  * Parse and make use of X.509 PGPExtension if present in X.509 public
+    key carrier.
+  * Fix HUP server restart when used with Net::Server 0.99
+  * Crypt::Monkeysphere::Keytrans has the start of some key/certificate
+    conversion routines.
+
+ -- Daniel Kahn Gillmor <dkg@fifthhorseman.net>  Wed, 20 Apr 2011 01:48:20 -0400
+
 msva-perl (0.8) upstream;
 
   * Minor bugfix release!

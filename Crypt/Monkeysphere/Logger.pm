@@ -21,7 +21,7 @@
 #
 #----------------------------------------------------------------------
 
-{ package Crypt::Monkeysphere::MSVA::Logger;
+{ package Crypt::Monkeysphere::Logger;
 
   use strict;
   use warnings;
