@@ -23,6 +23,7 @@
 
 { package Crypt::Monkeysphere::MSVA::Monitor;
 
+  use Module::Load::Conditional;
   use strict;
   use warnings;
 
