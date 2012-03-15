@@ -886,12 +886,12 @@
           }
           # restore default SIGCHLD handling:
           $SIG{CHLD} = 'DEFAULT';
-          $ENV{MONKEYSPHERE_VALIDATION_AGENT_SOCKET} = sprintf('http://localhost:%d', $self->port);
+          $ENV{MONKEYSPHERE_VALIDATION_AGENT_SOCKET} = sprintf('http://127.0.0.1:%d', $self->port);
           exec(@args) or exit 111;
         }
       }
     } else {
-      printf("MONKEYSPHERE_VALIDATION_AGENT_SOCKET=http://localhost:%d;\nexport MONKEYSPHERE_VALIDATION_AGENT_SOCKET;\n", $self->port);
+      printf("MONKEYSPHERE_VALIDATION_AGENT_SOCKET=http://127.0.0.1:%d;\nexport MONKEYSPHERE_VALIDATION_AGENT_SOCKET;\n", $self->port);
       # FIXME: consider daemonizing here to behave more like
       # ssh-agent.  maybe avoid backgrounding by setting
       # MSVA_NO_BACKGROUND.

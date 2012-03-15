@@ -145,7 +145,7 @@
 
     $self->{logger} = Crypt::Monkeysphere::MSVA::Logger->new($args{log_level});
     $self->{socket} = $args{socket};
-    $self->{socket} = 'http://localhost:8901'
+    $self->{socket} = 'http://127.0.0.1:8901'
       if (! defined $self->{socket} or $self->{socket} eq '');
 
     # create the user agent
