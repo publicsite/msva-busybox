@@ -160,7 +160,7 @@ msva-query-agent's behavior is controlled by environment variables:
 =item MONKEYSPHERE_VALIDATION_AGENT_SOCKET
 
 Socket over which to query the validation agent.  If unset, the
-default value is 'http://localhost:8901'.
+default value is 'http://127.0.0.1:8901'.
 
 =item MSVA_LOG_LEVEL
 
