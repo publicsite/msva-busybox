@@ -22,7 +22,7 @@ use strict;
 use Crypt::Monkeysphere::MSVA;
 
 my $server = Crypt::Monkeysphere::MSVA->new();
-$server->run(host=>'localhost',
+$server->run(host=>'127.0.0.1',
              log_level=> $server->logger->get_log_level(),
              user => POSIX::geteuid(),  # explicitly choose regular user and group (avoids spew)
              group => POSIX::getegid(),
@@ -126,11 +126,11 @@ http://web.monkeysphere.info/validation-agent/protocol
 
 =head1 SECURITY CONSIDERATIONS
 
-msva-perl deliberately binds to the loopback adapter (via named lookup
-of "localhost") so that remote users do not get access to the daemon.
-On systems (like Linux) which report ownership of TCP sockets in
-/proc/net/tcp, msva-perl will refuse access from random users (see
-MSVA_ALLOWED_USERS above).
+msva-perl deliberately binds to the IPv4 loopback (on 127.0.0.1) so
+that remote users do not get access to the daemon.  On systems (like
+Linux) which report ownership of TCP sockets in /proc/net/tcp,
+msva-perl will refuse access from random users (see MSVA_ALLOWED_USERS
+above).
 
 =head1 SEE ALSO
 

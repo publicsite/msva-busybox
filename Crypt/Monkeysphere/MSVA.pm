@@ -759,19 +759,23 @@
     $server->{server}->{leave_children_open_on_hup} = 1;
 
     my $socketcount = @{ $server->{server}->{sock} };
-    if ( $socketcount != 1 ) {
-      msvalog('error', "%d sockets open; should have been 1.\n", $socketcount);
+    # note: we're assuming here that if there are more than one socket
+    # open (e.g. IPv6 and IPv4, or multiple IP addresses of the same
+    # family), they all share the same port number as socket 0.
+    if ( $socketcount < 1 ) {
+      msvalog('error', "%d sockets open; should have been at least 1.\n", $socketcount);
       $server->set_exit_status(10);
       $server->server_close();
     }
     if (!defined($self->port) || $self->port == 0) {
       my $port = @{ $server->{server}->{sock} }[0]->sockport();
-      if ((! defined($port)) || ($port < 1) || ($port >= 65536)) {
-        msvalog('error', "got nonsense port: %d.\n", $port);
-        $server->set_exit_status(11);
-        $server->server_close();
-      }
-      if ((exists $ENV{MSVA_PORT}) && (($ENV{MSVA_PORT} + 0) != $port)) {
+      if (! defined($port)) {
+        msvalog('error', "got undefined port.\nRecording as 0.\n", $port);
+        $port = 0;
+      } elsif (($port < 1) || ($port >= 65536)) {
+        msvalog('error', "got nonsense port: %d.\nRecording as 0.\n", $port);
+        $port = 0;
+      } elsif ((exists $ENV{MSVA_PORT}) && (($ENV{MSVA_PORT} + 0) != $port)) {
         msvalog('error', "Explicitly requested port %d, but got port: %d.", ($ENV{MSVA_PORT}+0), $port);
         $server->set_exit_status(13);
         $server->server_close();
@@ -822,12 +826,12 @@
           }
           # restore default SIGCHLD handling:
           $SIG{CHLD} = 'DEFAULT';
-          $ENV{MONKEYSPHERE_VALIDATION_AGENT_SOCKET} = sprintf('http://localhost:%d', $self->port);
+          $ENV{MONKEYSPHERE_VALIDATION_AGENT_SOCKET} = sprintf('http://127.0.0.1:%d', $self->port);
           exec(@args) or exit 111;
         }
       }
     } else {
-      printf("MONKEYSPHERE_VALIDATION_AGENT_SOCKET=http://localhost:%d;\nexport MONKEYSPHERE_VALIDATION_AGENT_SOCKET;\n", $self->port);
+      printf("MONKEYSPHERE_VALIDATION_AGENT_SOCKET=http://127.0.0.1:%d;\nexport MONKEYSPHERE_VALIDATION_AGENT_SOCKET;\n", $self->port);
       # FIXME: consider daemonizing here to behave more like
       # ssh-agent.  maybe avoid backgrounding by setting
       # MSVA_NO_BACKGROUND.

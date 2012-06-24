@@ -45,6 +45,8 @@
     my $self = shift;
     my $msglevel = shift;
 
+    $msglevel = 'error'
+      if (! defined($msglevel));
     if ($loglevels{lc($msglevel)} <= $self->{loglevel}) {
       printf STDERR @_;
     }
@@ -88,7 +90,7 @@
     my $class = shift;
     my $loglevel = shift;
 
-    my $self = {loglevel => $loglevels{lc($loglevel)}};
+    my $self = {loglevel => $loglevels{defined($loglevel) ? lc($loglevel) : 'error'}};
     $self->{loglevel} = $loglevels{error}
       if (!defined $self->{loglevel});
 
