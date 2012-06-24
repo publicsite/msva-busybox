@@ -825,8 +825,11 @@
     $server->{server}->{leave_children_open_on_hup} = 1;
 
     my $socketcount = @{ $server->{server}->{sock} };
-    if ( $socketcount != 1 ) {
-      msvalog('error', "%d sockets open; should have been 1.\n", $socketcount);
+    # note: we're assuming here that if there are more than one socket
+    # open (e.g. IPv6 and IPv4, or multiple IP addresses of the same
+    # family), they all share the same port number as socket 0.
+    if ( $socketcount < 1 ) {
+      msvalog('error', "%d sockets open; should have been at least 1.\n", $socketcount);
       $server->set_exit_status(10);
       $server->server_close();
     }
