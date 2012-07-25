@@ -842,7 +842,12 @@
       # ssh-agent.  maybe avoid backgrounding by setting
       # MSVA_NO_BACKGROUND.
     };
-    $self->{updatemonitor} = Crypt::Monkeysphere::MSVA::Monitor::->new($logger);
+    if (exists $ENV{MSVA_MONITOR_CHANGES} &&
+        $ENV{MSVA_MONITOR_CHANGES} eq 'true') {
+      $self->{updatemonitor} = Crypt::Monkeysphere::MSVA::Monitor::->new($logger);
+    } else {
+      msvalog('verbose', "Not monitoring for changes\n");
+    }
   }
 
   sub extracerts {
