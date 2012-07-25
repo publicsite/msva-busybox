@@ -23,8 +23,12 @@ msva-perl (0.9~pre) upstream;
     conversion routines.
   * Fix socket detection when used with Net::Server >= 2.00, which
     can bind to multiple sockets
+  * depend on Net::Server >= 2.00
+  * change launcher approach -- daemon is now child process, so that
+    daemon failures won't kill X11 session
+  * scanning and prompting for changes is now optional (defaults to off)
 
- -- Daniel Kahn Gillmor <dkg@fifthhorseman.net>  Sun, 24 Jun 2012 13:16:44 -0400
+ -- Daniel Kahn Gillmor <dkg@fifthhorseman.net>  Wed, 25 Jul 2012 13:12:55 -0400
 
 msva-perl (0.8) upstream;
 
