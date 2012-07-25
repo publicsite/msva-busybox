@@ -1,9 +1,18 @@
-msva-perl (0.9~pre-1) UNRELEASED; urgency=low
+msva-perl (0.9-1) unstable; urgency=low
 
-  * New Upstream version (tighter dependencies)
+  * New Upstream version
+   - tighter dependencies
+   - daemon crash should no longer kill X11 session
+     (Closes: #682353, #682518)
+   - cleanup for newer versions of perl and modules 
+     (Closes: #677565, #642304)
+   - binds explicitly to IPv4 loopback
+     (Closes: #661939)
+   - scanning for changes and prompting to reload off by default
+     (Closes: #614313)
   * bumped Standards-Version to 3.9.3 (no changes needed)
 
- -- Daniel Kahn Gillmor <dkg@fifthhorseman.net>  Sun, 24 Jun 2012 13:17:57 -0400
+ -- Daniel Kahn Gillmor <dkg@fifthhorseman.net>  Wed, 25 Jul 2012 13:20:08 -0400
 
 msva-perl (0.8-2) unstable; urgency=low
 
