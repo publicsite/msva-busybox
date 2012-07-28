@@ -114,6 +114,14 @@ keyserver. 'unlessvalid' will only check with the keyserver on a
 specific query if no keys are already locally known to be valid for
 the requested peer.  Default is 'unlessvalid'.
 
+=item MSVA_MONITOR_CHANGES
+
+Under graphical environments such as X11, msva-perl is capable of
+monitoring for changes in its underlying code and can prompt the user
+to restart the daemon when some of the underlying code changes.
+Setting this environmnt variable to 'true' enables this monitoring and
+prompting behavior.  Default is 'false'.
+
 =back
 
 =head1 COMMUNICATION PROTOCOL DETAILS

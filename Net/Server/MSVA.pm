@@ -19,6 +19,7 @@
 { package Net::Server::MSVA;
   use strict;
   use base qw(Net::Server::Fork);
+  use Net::Server 2.000 ();
 
   my $msva;
   # guarantee initial failure -- this will be cleared after we bind
@@ -35,6 +36,11 @@
   sub pre_loop_hook {
     my $self = shift;
     $msva->pre_loop_hook($self, @_);
+  }
+
+  sub pre_accept_hook {
+    my $self = shift;
+    $msva->pre_accept_hook($self, @_);
   }
 
   sub set_exit_status {
