@@ -1,4 +1,4 @@
-msva-perl (0.9~pre) upstream;
+msva-perl (0.9) upstream;
 
   [ Jameson Rollins ]
   * Add "e-mail" context (checks for signing capability instead of
