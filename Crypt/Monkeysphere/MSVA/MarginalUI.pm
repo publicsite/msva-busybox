@@ -46,7 +46,8 @@
     }
 
     foreach my $keyfpr (@subvalid_key_fprs) {
-      my $fprx = sprintf('0x%.40s', $keyfpr->{fingerprint}->as_hex_string());
+      $keyfpr->{fingerprint}->as_hex_string() =~ /([[:xdigit:]]{0,40})/;
+      my $fprx = '0x' . $1;
       $logger->log('debug', "checking on %s\n", $fprx);
       foreach my $gpgkey ($gnupg->get_public_keys_with_sigs($fprx)) {
         $logger->log('debug', "found key %.40s\n", $gpgkey->fingerprint->as_hex_string);
