@@ -709,7 +709,7 @@
     my $self = shift;
     my $server = shift;
 
-    $self->parent_changed($server) if (getppid() != $self->{parent_pid});
+    $self->parent_changed($server) if (defined $self->{parent_pid} && getppid() != $self->{parent_pid});
   }
 
   sub parent_changed {
