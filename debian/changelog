@@ -1,3 +1,10 @@
+msva-perl (0.9.1-1) unstable; urgency=low
+
+  * New Upstream version
+   - fix an error when msva-perl is launched without arguments.
+
+ -- Daniel Kahn Gillmor <dkg@fifthhorseman.net>  Sun, 09 Sep 2012 15:16:50 -0400
+
 msva-perl (0.9-1) unstable; urgency=low
 
   * New Upstream version
