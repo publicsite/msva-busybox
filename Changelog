@@ -1,3 +1,9 @@
+msva-perl (0.9.1) upstream;
+  Bug Fix Release:
+  * Fix error when msva-perl is run without arguments.
+
+ -- Daniel Kahn Gillmor <dkg@fifthhorseman.net>  Sun, 09 Sep 2012 15:15:34 -0400
+
 msva-perl (0.9) upstream;
 
   [ Jameson Rollins ]
