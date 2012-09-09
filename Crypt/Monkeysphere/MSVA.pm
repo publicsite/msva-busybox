@@ -45,7 +45,7 @@
   # we need the version of GnuPG::Interface that knows about pubkey_data, etc:
   use GnuPG::Interface 0.43;
 
-  $VERSION = '0.9~pre';
+  $VERSION = '0.9.1';
 
   my $gnupg = GnuPG::Interface::->new();
   $gnupg->options->quiet(1);
@@ -709,7 +709,7 @@
     my $self = shift;
     my $server = shift;
 
-    $self->parent_changed($server) if (getppid() != $self->{parent_pid});
+    $self->parent_changed($server) if (defined $self->{parent_pid} && getppid() != $self->{parent_pid});
   }
 
   sub parent_changed {
