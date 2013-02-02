@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 
 # Author: Daniel Kahn Gillmor <dkg@fifthhorseman.net>
-# Copyright: 2011
+# Copyright: 2011, 2013
 # License: GPL-3+
 
 # WARNING: This is very rough code!  the interface WILL change
@@ -25,15 +25,18 @@ my $cert = Crypt::X509::_init('Certificate');
 $cert->configure('encode' => { 'time' => 'raw' } );
 my $pgpe = Crypt::X509::_init('PGPExtension');
 $pgpe->configure('encode' => { 'time' => 'raw' } );
+my $san = Crypt::X509::_init('SubjectAltName');
+$san->configure('encode' => { 'time' => 'raw' } );
 my $rsapubkeyinfo = Crypt::X509::_init('RSAPubKeyInfo');
 
 my $dntypes = { 'CN' => '2.5.4.3', # common name
-                'emailAddress' => '1.2.840.113549.1.9.1', # e-mail address
+                'emailAddress' => '1.2.840.113549.1.9.1', # e-mail address -- DEPRECATED.  should use subjectAltName instead.
                 'C' => '2.5.4.6', # country
                 'ST' => '2.5.4.8', # state
                 'L' => '2.5.4.7', # locality
                 'O' => '2.5.4.10', # organization
                 'OU' => '2.5.4.11', # organization unit (often used as a comment)
+                'PSEUDO' => '2.5.4.65', # organization unit (often used as a comment)
             };
 
 my $algos = {
@@ -115,7 +118,10 @@ my $algos = {
 # I think it means the NULL type.
 my $noparams = sprintf('%c%c', 5, 0);
 
-my $extensions = { 'PGPExtension' => '1.3.6.1.4.1.3401.8.1.1' };
+my $extensions = {
+                  'PGPExtension' => '1.3.6.1.4.1.3401.8.1.1',
+                  'subjectAltName' => '2.5.29.17', # https://tools.ietf.org/html/rfc5280#section-4.2.1.6
+                 };
 
 my $gnupg = GnuPG::Interface::->new();
 $gnupg->options->quiet(1);
@@ -159,8 +165,10 @@ sub makeX509CertForUserID {
   my $protocol;
   my $emailaddress;
   my $humanname;
+  my $comment;
   my $subject;
   my $ret = [];
+  my @subjectAltNames;
 
   if ($userid =~ /^\s+/) {
     err("We will not process User IDs with leading whitespace\n");
@@ -176,25 +184,41 @@ sub makeX509CertForUserID {
   }
   # FIXME: do we want to rule out any other forms of User ID?
 
-
-  if ($userid =~ /^(.*)\s+<([^><@\s]+\@$RE{net}{domain})>$/ ) {
+  if ($userid =~ /^([^()]*)\s+(\((.*)\)\s+)?<([^><@\s]+\@$RE{net}{domain})>$/ ) {
     # this is a typical/expected OpenPGP User ID.
+
     $humanname = $1;
-    $emailaddress = $2;
+    $comment = $3;
+    $emailaddress = $4;
+
+    # We're stripping arbitrary amounts of whitespace between the
+    # name, the comment, and the e-mail address here.  if that
+    # whitespace is anything but " " then the OpenPGP User ID will not
+    # be reconstructible from the string.
+    my $reconstructeduid;
+    if (defined($comment)) {
+      $reconstructeduid = sprintf('%s (%s) <%s>', $humanname, $comment, $emailaddress);
+    } else {
+      $reconstructeduid = sprintf('%s <%s>', $humanname, $emailaddress);
+    }
+    if ($userid ne $reconstructeduid) {
+      err("This OpenPGP User ID could not be reconstructed from the X.509 certificate we would generate.  Maybe a whitespace issue?\n");
+      return $ret;
+    }
+
     $subject = [
                 [ {
                    'type' => $dntypes->{'CN'},
                    'value' => {
-                               'printableString' => $humanname,
-                              },
-                  } ],
-                [ {
-                   'type' => $dntypes->{'emailAddress'},
-                   'value' => {
-                               'ia5String' => $emailaddress,
+                               'utf8String' => $humanname,
                               },
                   } ],
                ];
+    push(@{ $subject }, [ { 'type' => $dntypes->{'PSEUDO'},
+                            'value' => { 'utf8String' => $comment } } ] )
+      if defined($comment);
+
+    push(@subjectAltNames, { 'rfc822Name' => $emailaddress });
   } elsif ($userid =~ /^(https|ssh|smtps?|ike|postgresql|imaps?|submission):\/\/($RE{net}{domain})$/) {
     $protocol = $1;
     $hostname = $2;
@@ -204,10 +228,22 @@ sub makeX509CertForUserID {
                                 'printableString' => $hostname
                                },
                    } ] ];
+    push(@subjectAltNames, { 'dNSName' => $hostname });
   } else {
-    # what should we do here?  Maybe we just assume this is a bare Human Name?
+    # Maybe we just assume this is a bare Human Name?
+
+    # what if it's a human name plus a comment?  should we treat the
+    # comment like a pseudonym, as above?
     err("Assuming '%s' is a bare human name.\n", $userid);
     $humanname = $userid;
+    $subject = [
+                [ {
+                   'type' => $dntypes->{'CN'},
+                   'value' => {
+                               'printableString' => $humanname,
+                              },
+                  } ],
+               ];
   }
 
   foreach my $gpgkey ($gnupg->get_public_keys('='.$userid)) {
@@ -266,6 +302,14 @@ sub makeX509CertForUserID {
       push(@extensions, { 'extnID' => $extensions->{'PGPExtension'},
                           'extnValue' => $pgpeval
                         });
+      if (@subjectAltNames) {
+        my $saneval = $san->encode(\@subjectAltNames);
+        print $san->{error}
+          if (!defined($saneval));
+        push(@extensions, { 'extnID' => $extensions->{'subjectAltName'},
+                            'extnValue' => $saneval
+                          });
+      }
 
       # FIXME: base some keyUsage extensions on the type of User ID
       # and on the usage flags of the key in question.
@@ -292,8 +336,10 @@ sub makeX509CertForUserID {
       # FIXME: add subjectAltName that matches the type of information
       # we believe we're working with (see the cert-id draft).
 
-      # FIXME: if @sans is present, add them as subjectAltNames (do we
-      # want to do this? maybe this should be optional).
+      # if @sans is present, should we add them as subjectAltNames? (i
+      # don't think so.  this certificate should be just for the User
+      # ID requested.  The user can always make) another certificate
+      # for the other user IDs and use that one.
 
 
       my $newcert = {
