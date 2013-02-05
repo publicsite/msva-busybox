@@ -297,6 +297,7 @@ sub makeX509CertForUserID {
         err("key 0x%s is not authentication-capable -- skipping\n", $subkey->fingerprint->as_hex_string);
         next
       }
+      err("making certificate for key 0x%s\n", $subkey->fingerprint->as_hex_string);
 
       my $pubkey = { 'modulus' => @{$subkey->pubkey_data}[0],
                      'exponent' => @{$subkey->pubkey_data}[1],
