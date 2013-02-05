@@ -408,7 +408,7 @@ sub makeX509CertForUserID {
 
       my $dd = $cert->encode($newcert);
 
-      push(@{$ret}, $dd);
+      push(@{$ret}, { 'der' => $dd, 'fpr' => $subkey->fingerprint->as_hex_string});
     }
   }
   return $ret;
@@ -416,5 +416,25 @@ sub makeX509CertForUserID {
 
 
 foreach $cert ( @{ makeX509CertForUserID($ARGV[0]) } ) {
-  printf("-----BEGIN CERTIFICATE-----\n%s-----END CERTIFICATE-----\n", encode_base64($cert));
+  if (defined($ENV{OPENPGP2X509_EMIT_PKCS12})) {
+    # FIXME: figure out how to do this with certtool instead of openssl;
+    # the PKCS12 files i've tried to generate from certtool --to-p12
+    # can't be loaded by iceweasel for some reason.
+
+    # FIXME: don't do this horrific shell nastiness.  be nicer!
+    $ENV{CERTOUTPUT} = sprintf("-----BEGIN CERTIFICATE-----\n%s-----END CERTIFICATE-----\n",
+                               encode_base64($cert->{'der'}));
+    $ENV{FPR} = $cert->{'fpr'};
+    $ENV{OPENPGP_UID} = $ARGV[0];
+
+    # Note that while pkcs12(1ssl) claims that the order doesn't
+    # matter, in fact, this doesn't work if you emit the certificate
+    # before you emit the key.
+    system('(gpg --export-options export-reset-subkey-passwd --export-secret-subkeys "0x$FPR"\! |'.
+           'openpgp2pem "$FPR" && printf "%s" "$CERTOUTPUT") |'.
+           'openssl pkcs12 -export -name "$OPENPGP_UID"');
+ 
+  } else {
+    printf("-----BEGIN CERTIFICATE-----\n%s-----END CERTIFICATE-----\n", encode_base64($cert->{'der'}));
+  }
 }
