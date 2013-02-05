@@ -36,7 +36,7 @@ my $dntypes = { 'CN' => '2.5.4.3', # common name
                 'L' => '2.5.4.7', # locality
                 'O' => '2.5.4.10', # organization
                 'OU' => '2.5.4.11', # organization unit (often used as a comment)
-                'PSEUDO' => '2.5.4.65', # organization unit (often used as a comment)
+                'PSEUDO' => '2.5.4.65', # pseudonym (used for the parenthetical "comment" in the conventional OpenPGP User ID)
             };
 
 my $algos = {
