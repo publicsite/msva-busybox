@@ -4,14 +4,26 @@
 # Copyright: 2011, 2013
 # License: GPL-3+
 
+# Usage (two examples):
+
+# openpgp2x509 'Daniel Kahn Gillmor <dkg@fifthhorseman.net>'
+# openpgp2x509 ssh://lair.fifthhorseman.net
+
+# Each invocation will produce a series of PEM-encoded X.509
+# certificates on stdout corresponding to keys that are well-bound to
+# the specified OpenPGP User ID.
+
+# This tool should detect (based on the form of the User ID) what kind
+# of X.509 certificate to produce
+
+# It only emits certificates for OpenPGP keys that are marked with the
+# "Authentication" usage flag.  FIXME: make the usage flag selection
+# adjustable by an environment variable or something.
+
 # WARNING: This is very rough code!  the interface WILL change
 # dramatically.  The only thing I can commit to keeping stable are the
 # OIDs.
 
-# Use this code to take an OpenPGP certificate (pubkey) and emit a
-# corresponding OpenPGP-validated X.509 certificate.
-
-# Usage: openpgp2x509 ssh://lair.fifthhorseman.net
 
 use strict;
 use warnings;
@@ -271,7 +283,20 @@ sub makeX509CertForUserID {
         err("key 0x%s is algorithm %d (not RSA) -- we currently only handle RSA\n", $subkey->fingerprint->as_hex_string, $subkey->algo_num);
         next;
       }
-      # FIXME: reject/skip over revoked/expired keys.
+      # FIXME: reject/skip over revoked keys.
+      if (defined($subkey->{expiration_date}) &&
+          $subkey->{expiration_date} <= time()) {
+        err("key 0x%s is expired -- skipping\n", $subkey->fingerprint->as_hex_string);
+        next;
+      }
+      if ($subkey->{usage_flags} =~ /D/) {
+        err("key 0x%s is disabled -- skipping\n", $subkey->fingerprint->as_hex_string);
+        next;
+      }
+      if ($subkey->{usage_flags} !~ /a/) {
+        err("key 0x%s is not authentication-capable -- skipping\n", $subkey->fingerprint->as_hex_string);
+        next
+      }
 
       my $pubkey = { 'modulus' => @{$subkey->pubkey_data}[0],
                      'exponent' => @{$subkey->pubkey_data}[1],
@@ -336,9 +361,9 @@ sub makeX509CertForUserID {
       # FIXME: add subjectAltName that matches the type of information
       # we believe we're working with (see the cert-id draft).
 
-      # if @sans is present, should we add them as subjectAltNames? (i
+      # if @sans is present, should we add them as subjectAltNames? i
       # don't think so.  this certificate should be just for the User
-      # ID requested.  The user can always make) another certificate
+      # ID requested.  The user can always make another certificate
       # for the other user IDs and use that one.
 
 
