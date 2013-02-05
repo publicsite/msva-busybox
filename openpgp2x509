@@ -431,7 +431,7 @@ foreach $cert ( @{ makeX509CertForUserID($ARGV[0]) } ) {
     # matter, in fact, this doesn't work if you emit the certificate
     # before you emit the key.
     system('(gpg --export-options export-reset-subkey-passwd --export-secret-subkeys "0x$FPR"\! |'.
-           'openpgp2pem "$FPR" && printf "%s" "$CERTOUTPUT") |'.
+           'openpgp2ssh "$FPR" && printf "%s" "$CERTOUTPUT") |'.
            'openssl pkcs12 -export -name "$OPENPGP_UID"');
  
   } else {
