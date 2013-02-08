@@ -22,7 +22,7 @@ use strict;
 use Crypt::Monkeysphere::MSVA;
 
 my $server = Crypt::Monkeysphere::MSVA->new();
-$server->run(host=>'localhost',
+$server->run(host=>'127.0.0.1',
              log_level=> $server->logger->get_log_level(),
              user => POSIX::geteuid(),  # explicitly choose regular user and group (avoids spew)
              group => POSIX::getegid(),
@@ -114,6 +114,14 @@ keyserver. 'unlessvalid' will only check with the keyserver on a
 specific query if no keys are already locally known to be valid for
 the requested peer.  Default is 'unlessvalid'.
 
+=item MSVA_MONITOR_CHANGES
+
+Under graphical environments such as X11, msva-perl is capable of
+monitoring for changes in its underlying code and can prompt the user
+to restart the daemon when some of the underlying code changes.
+Setting this environmnt variable to 'true' enables this monitoring and
+prompting behavior.  Default is 'false'.
+
 =back
 
 =head1 COMMUNICATION PROTOCOL DETAILS
@@ -126,11 +134,11 @@ http://web.monkeysphere.info/validation-agent/protocol
 
 =head1 SECURITY CONSIDERATIONS
 
-msva-perl deliberately binds to the loopback adapter (via named lookup
-of "localhost") so that remote users do not get access to the daemon.
-On systems (like Linux) which report ownership of TCP sockets in
-/proc/net/tcp, msva-perl will refuse access from random users (see
-MSVA_ALLOWED_USERS above).
+msva-perl deliberately binds to the IPv4 loopback (on 127.0.0.1) so
+that remote users do not get access to the daemon.  On systems (like
+Linux) which report ownership of TCP sockets in /proc/net/tcp,
+msva-perl will refuse access from random users (see MSVA_ALLOWED_USERS
+above).
 
 =head1 SEE ALSO
 

@@ -117,7 +117,9 @@ use warnings;
       if (JSON::is_bool($ret->{valid}) && ($ret->{valid} eq 1)) {
         $self->{logger}->log('verbose', "Monkeysphere HKPMS Certificate validation succeeded:\n  %s\n", $ret->{message});
       } else {
-        $self->{logger}->log('error', "Monkeysphere HKPMS Certificate validation failed:\n  %s\n", $ret->{message});
+        my $m = '[undefined]';
+        $m = $ret->{message} if (defined($ret->{message}));
+        $self->{logger}->log('error', "Monkeysphere HKPMS Certificate validation failed:\n  %s\n", $m);
       }
     }
 

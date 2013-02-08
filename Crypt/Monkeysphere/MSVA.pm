@@ -376,7 +376,7 @@
 
     # This is part of a spawned child process.  We don't want the
     # child process to destroy the update monitor when it terminates.
-    $self->{updatemonitor}->forget();
+    $self->{updatemonitor}->forget() if exists $self->{updatemonitor} && defined $self->{updatemonitor};
     my $clientinfo = get_client_info(select);
     my $clientuid = $clientinfo->{uid};
 
@@ -759,17 +759,22 @@
     my $self = shift;
     my $server = shift;
 
-    $self->spawn_master_subproc($server);
+    $self->spawn_as_child($server);
   }
 
-  sub master_subprocess_died {
+  sub pre_accept_hook {
     my $self = shift;
     my $server = shift;
-    my $subproc_return = shift;
 
-    my $exitstatus = POSIX::WEXITSTATUS($subproc_return);
-    msvalog('verbose', "Subprocess %d terminated; exiting %d.\n", $self->{child_pid}, $exitstatus);
-    $server->set_exit_status($exitstatus);
+    $self->parent_changed($server) if (defined $self->{parent_pid} && getppid() != $self->{parent_pid});
+  }
+
+  sub parent_changed {
+    my $self = shift;
+    my $server = shift;
+
+    msvalog('verbose', "parent %d went away; exiting.\n", $self->{parent_pid});
+    $server->set_exit_status(0);
     $server->server_close();
   }
 
@@ -802,10 +807,6 @@
         # instead, we'll just avoid trying to kill the next process with this PID:
         $self->{updatemonitor}->forget();
       }
-    } elsif (exists $self->{child_pid} &&
-             ($self->{child_pid} == 0 ||
-              $self->{child_pid} == $pid)) {
-      $self->master_subprocess_died($server, $?);
     }
   }
 
@@ -825,36 +826,41 @@
     $server->{server}->{leave_children_open_on_hup} = 1;
 
     my $socketcount = @{ $server->{server}->{sock} };
-    if ( $socketcount != 1 ) {
-      msvalog('error', "%d sockets open; should have been 1.\n", $socketcount);
+    # note: we're assuming here that if there are more than one socket
+    # open (e.g. IPv6 and IPv4, or multiple IP addresses of the same
+    # family), they all share the same port number as socket 0.
+    if ( $socketcount < 1 ) {
+      msvalog('error', "%d sockets open; should have been at least 1.\n", $socketcount);
       $server->set_exit_status(10);
       $server->server_close();
     }
-    my $port = @{ $server->{server}->{sock} }[0]->sockport();
-    if ((! defined $port) || ($port < 1) || ($port >= 65536)) {
-      msvalog('error', "got nonsense port: %d.\n", $port);
-      $server->set_exit_status(11);
-      $server->server_close();
+    if (!defined($self->port) || $self->port == 0) {
+      my $port = @{ $server->{server}->{sock} }[0]->sockport();
+      if (! defined($port)) {
+        msvalog('error', "got undefined port.\nRecording as 0.\n", $port);
+        $port = 0;
+      } elsif (($port < 1) || ($port >= 65536)) {
+        msvalog('error', "got nonsense port: %d.\nRecording as 0.\n", $port);
+        $port = 0;
+      } elsif ((exists $ENV{MSVA_PORT}) && (($ENV{MSVA_PORT} + 0) != $port)) {
+        msvalog('error', "Explicitly requested port %d, but got port: %d.", ($ENV{MSVA_PORT}+0), $port);
+        $server->set_exit_status(13);
+        $server->server_close();
+      }
+      $self->port($port);
     }
-    if ((exists $ENV{MSVA_PORT}) && (($ENV{MSVA_PORT} + 0) != $port)) {
-      msvalog('error', "Explicitly requested port %d, but got port: %d.", ($ENV{MSVA_PORT}+0), $port);
-      $server->set_exit_status(13);
-      $server->server_close();
-    }
-    $self->port($port);
-    $self->{updatemonitor} = Crypt::Monkeysphere::MSVA::Monitor::->new($logger);
   }
 
-  sub spawn_master_subproc {
+  sub spawn_as_child {
     my $self = shift;
     my $server = shift;
 
-    if ((exists $ENV{MSVA_CHILD_PID}) && ($ENV{MSVA_CHILD_PID} ne '')) {
+    if ((exists $ENV{MSVA_PARENT_PID}) && ($ENV{MSVA_PARENT_PID} ne '')) {
       # this is most likely a re-exec.
-      msvalog('info', "This appears to be a re-exec, continuing with child pid %d\n", $ENV{MSVA_CHILD_PID});
-      $self->{child_pid} = $ENV{MSVA_CHILD_PID} + 0;
-    } elsif ($#ARGV >= 0) {
-      $self->{child_pid} = 0; # indicate that we are planning to fork.
+      msvalog('info', "This appears to be a re-exec, continuing with parent pid %d\n", $ENV{MSVA_PARENT_PID});
+      $self->{parent_pid} = $ENV{MSVA_PARENT_PID} + 0;
+     } elsif ($#ARGV >= 0) {
+      $self->{parent_pid} = 0; # indicate that we are planning to fork.
       # avoid ignoring SIGCHLD right before we fork.
       $SIG{CHLD} = sub {
         my $val;
@@ -862,20 +868,26 @@
           $self->child_dies($val, $server);
         }
       };
+      my $pid = $$;
       my $fork = fork();
       if (! defined $fork) {
         msvalog('error', "could not fork\n");
       } else {
-        if ($fork) {
-          msvalog('debug', "Child process has PID %d\n", $fork);
-          $self->{child_pid} = $fork;
-          $ENV{MSVA_CHILD_PID} = $fork;
+        if (! $fork) {
+          msvalog('debug', "daemon has PID %d, parent has PID %d\n", $$, $pid);
+          $self->{parent_pid} = $pid;
+          # ppid is set in Net::Server::Fork's post_configure; we're
+          # past post_configure by here, and we're about to change
+          # process IDs before assuming the role of a forking server,
+          # so we should set it properly:
+          $server->{server}->{ppid} = $$;
+          $ENV{MSVA_PARENT_PID} = $pid;
         } else {
           msvalog('verbose', "PID %d executing: \n", $$);
           for my $arg (@ARGV) {
             msvalog('verbose', " %s\n", $arg);
           }
-          # untaint the environment for the subprocess
+          # untaint the environment for the parent process
           # see: https://labs.riseup.net/code/issues/2461
           foreach my $e (keys %ENV) {
             $ENV{$e} = untaint($ENV{$e});
@@ -886,16 +898,22 @@
           }
           # restore default SIGCHLD handling:
           $SIG{CHLD} = 'DEFAULT';
-          $ENV{MONKEYSPHERE_VALIDATION_AGENT_SOCKET} = sprintf('http://localhost:%d', $self->port);
+          $ENV{MONKEYSPHERE_VALIDATION_AGENT_SOCKET} = sprintf('http://127.0.0.1:%d', $self->port);
           exec(@args) or exit 111;
         }
       }
     } else {
-      printf("MONKEYSPHERE_VALIDATION_AGENT_SOCKET=http://localhost:%d;\nexport MONKEYSPHERE_VALIDATION_AGENT_SOCKET;\n", $self->port);
+      printf("MONKEYSPHERE_VALIDATION_AGENT_SOCKET=http://127.0.0.1:%d;\nexport MONKEYSPHERE_VALIDATION_AGENT_SOCKET;\n", $self->port);
       # FIXME: consider daemonizing here to behave more like
       # ssh-agent.  maybe avoid backgrounding by setting
       # MSVA_NO_BACKGROUND.
     };
+    if (exists $ENV{MSVA_MONITOR_CHANGES} &&
+        $ENV{MSVA_MONITOR_CHANGES} eq 'true') {
+      $self->{updatemonitor} = Crypt::Monkeysphere::MSVA::Monitor::->new($logger);
+    } else {
+      msvalog('verbose', "Not monitoring for changes\n");
+    }
   }
 
   sub extracerts {
