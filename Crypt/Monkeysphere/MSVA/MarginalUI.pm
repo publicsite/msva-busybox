@@ -46,7 +46,7 @@
     }
 
     foreach my $keyfpr (@subvalid_key_fprs) {
-      $keyfpr->{fingerprint}->as_hex_string() =~ /([[:xdigit:]]{0,40})/;
+      $keyfpr->{fpr}->as_hex_string() =~ /([[:xdigit:]]{0,40})/;
       my $fprx = '0x' . $1;
       $logger->log('debug', "checking on %s\n", $fprx);
       foreach my $gpgkey ($gnupg->get_public_keys_with_sigs($fprx)) {
