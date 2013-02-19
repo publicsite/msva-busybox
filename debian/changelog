@@ -6,6 +6,7 @@ msva-perl (0.8.1-1) testing-proposed-updates; urgency=low
    - avoid spurious logging errors (Closes: #642304)
    - bind to IPv4 loopback explicitly (Closes: #661939)
    - rely on new Net::Server (>= 2.00)
+   - default to not ask for a daemon restart (Closes: #614313)
   * bump Standards-Version to 3.9.4 (no changes needed).
 
  -- Daniel Kahn Gillmor <dkg@fifthhorseman.net>  Thu, 07 Feb 2013 23:58:15 -0500
