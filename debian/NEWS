@@ -1,0 +1,17 @@
+msva-perl (0.8.1-2) testing-proposed-updates; urgency=low
+
+  DO NOT RESTART THE MONKEYSPHERE VALIDATION AGENT WHEN UPGRADING FROM
+                    BEFORE 0.8.1 TO 0.8.1 OR LATER!!
+
+  * Older versions of the MSVA default to prompting the user to restart
+    the running daemon when they detect that they've been upgraded.
+    However, due to changes in the dependent libraries, these restarts are
+    likely to cause the agent to crash, which in turn is likely to
+    terminate the user's X11 session.
+  
+  * Future versions of the MSVA default to not prompt for such a restart
+    when an upgrade is detected, and if they do crash this should not
+    terminate the user's X11 session.
+
+ -- Daniel Kahn Gillmor <dkg@fifthhorseman.net>  Sat, 06 Apr 2013 00:00:11 -0400
+
