@@ -341,7 +341,7 @@ sub makeX509CertForUserID {
       # and on the usage flags of the key in question.
 
       # if 'a' is present
-      # if protocol =~ /^http|ssh|smtps?|postgresql|imaps?|submission$/ then set TLS server eKU + ???
+      # if protocol =~ /^https|smtps?|postgresql|imaps?|submission$/ then set TLS server eKU + ???
       # if protocol eq 'ike' then ??? (ask micah)
       # if protocol =~ /^smtps?$/ then set TLS client + ???
       # if defined($humanname) then set TLS client + ???
@@ -433,7 +433,6 @@ foreach $cert ( @{ makeX509CertForUserID($ARGV[0]) } ) {
     system('(gpg --export-options export-reset-subkey-passwd --export-secret-subkeys "0x$FPR"\! |'.
            'openpgp2ssh "$FPR" && printf "%s" "$CERTOUTPUT") |'.
            'openssl pkcs12 -export -name "$OPENPGP_UID"');
- 
   } else {
     printf("-----BEGIN CERTIFICATE-----\n%s-----END CERTIFICATE-----\n", encode_base64($cert->{'der'}));
   }
