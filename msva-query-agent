@@ -43,7 +43,7 @@ if ((!defined($context)) ||
   my ($status,$ret) = $client->agent_info();
   $client->log('verbose', "status: %s\n", $status);
   if (defined $ret) {
-    printf("%s", $ret->{server});
+    printf("%s\n", $ret->{server});
     exit 0;
   }
   exit 1;
@@ -80,7 +80,7 @@ if (defined $ret) {
     exit 1;
   }
 } else {
-  printf("%s", $status);
+  printf("%s\n", $status);
   exit 100;
 }
 
