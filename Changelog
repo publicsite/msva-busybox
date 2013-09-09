@@ -1,3 +1,10 @@
+msva-perl (0.9.2) upstream;
+
+  * tweak POD to declare charset
+  * openpgp2x509: a bit more clean up and features (needs more work)
+
+ -- Daniel Kahn Gillmor <dkg@fifthhorseman.net>  Fri, 23 Aug 2013 10:20:28 -0400
+
 msva-perl (0.9.1) upstream;
 
   * Bug Fix Release:

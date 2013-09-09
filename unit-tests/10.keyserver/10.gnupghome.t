@@ -8,7 +8,7 @@ use strict;
 use warnings;
 
 my $fpr='762B57BB784206AD';
-plan tests =>5;
+plan tests =>7;
 
 {
 
@@ -37,3 +37,15 @@ my $ks=new Crypt::Monkeysphere::Keyserver(gnupg=>$gnupg,
 isa_ok($ks,'Crypt::Monkeysphere::Keyserver');
 
 is($ks->{keyserver},$testks);
+
+open GPGCONF, '>', "$tempdir/gpg.conf";
+print GPGCONF "keyserver $testks\n";
+print GPGCONF "keyserver $testks.example\n";
+close GPGCONF;
+
+$ks=new Crypt::Monkeysphere::Keyserver(gnupg=>$gnupg,
+                                       loglevel=>'debug');
+
+isa_ok($ks,'Crypt::Monkeysphere::Keyserver');
+
+is($ks->{keyserver},"$testks.example");
