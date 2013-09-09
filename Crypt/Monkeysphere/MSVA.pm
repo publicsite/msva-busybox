@@ -461,7 +461,7 @@
 
   sub pem2der {
     my $pem = shift;
-    my @lines = split(/\n/, $pem);
+    my @lines = split(/\r?\n/, $pem);
     my @goodlines = ();
     my $ready = 0;
     foreach my $line (@lines) {

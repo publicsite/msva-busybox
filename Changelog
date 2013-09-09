@@ -4,6 +4,7 @@ msva-perl (0.9.2) upstream;
   * openpgp2x509: a bit more clean up and features (needs more work)
   * handle multiple keyserver entries in gpg.conf gracefully
     (closes MS #6252)
+  * also accept DOS-style CR/LF line endings in PEM-encoded X.509 certs
 
  -- Daniel Kahn Gillmor <dkg@fifthhorseman.net>  Mon, 09 Sep 2013 01:16:47 -0400
 
