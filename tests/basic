@@ -38,6 +38,7 @@ printf "\ndone\n"
 
 WORKDIR=$(mktemp -d)
 mkdir -m 0700 "${WORKDIR}/"{pkc,sec,gnupg}
+touch "${WORKDIR}/gnupg/gpg.conf"
 export GNUPGHOME="${WORKDIR}/gnupg"
 
 if gpg --quick-random --version ; then
