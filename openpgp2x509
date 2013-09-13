@@ -1,17 +1,29 @@
 #!/usr/bin/perl
 
 # Author: Daniel Kahn Gillmor <dkg@fifthhorseman.net>
-# Copyright: 2011
+# Copyright: 2011, 2013
 # License: GPL-3+
+
+# Usage (two examples):
+
+# openpgp2x509 'Daniel Kahn Gillmor <dkg@fifthhorseman.net>'
+# openpgp2x509 ssh://lair.fifthhorseman.net
+
+# Each invocation will produce a series of PEM-encoded X.509
+# certificates on stdout corresponding to keys that are well-bound to
+# the specified OpenPGP User ID.
+
+# This tool should detect (based on the form of the User ID) what kind
+# of X.509 certificate to produce
+
+# It only emits certificates for OpenPGP keys that are marked with the
+# "Authentication" usage flag.  FIXME: make the usage flag selection
+# adjustable by an environment variable or something.
 
 # WARNING: This is very rough code!  the interface WILL change
 # dramatically.  The only thing I can commit to keeping stable are the
 # OIDs.
 
-# Use this code to take an OpenPGP certificate (pubkey) and emit a
-# corresponding OpenPGP-validated X.509 certificate.
-
-# Usage: openpgp2x509 ssh://lair.fifthhorseman.net
 
 use strict;
 use warnings;
@@ -25,15 +37,18 @@ my $cert = Crypt::X509::_init('Certificate');
 $cert->configure('encode' => { 'time' => 'raw' } );
 my $pgpe = Crypt::X509::_init('PGPExtension');
 $pgpe->configure('encode' => { 'time' => 'raw' } );
+my $san = Crypt::X509::_init('SubjectAltName');
+$san->configure('encode' => { 'time' => 'raw' } );
 my $rsapubkeyinfo = Crypt::X509::_init('RSAPubKeyInfo');
 
 my $dntypes = { 'CN' => '2.5.4.3', # common name
-                'emailAddress' => '1.2.840.113549.1.9.1', # e-mail address
+                'emailAddress' => '1.2.840.113549.1.9.1', # e-mail address -- DEPRECATED.  should use subjectAltName instead.
                 'C' => '2.5.4.6', # country
                 'ST' => '2.5.4.8', # state
                 'L' => '2.5.4.7', # locality
                 'O' => '2.5.4.10', # organization
                 'OU' => '2.5.4.11', # organization unit (often used as a comment)
+                'PSEUDO' => '2.5.4.65', # pseudonym (used for the parenthetical "comment" in the conventional OpenPGP User ID)
             };
 
 my $algos = {
@@ -115,7 +130,10 @@ my $algos = {
 # I think it means the NULL type.
 my $noparams = sprintf('%c%c', 5, 0);
 
-my $extensions = { 'PGPExtension' => '1.3.6.1.4.1.3401.8.1.1' };
+my $extensions = {
+                  'PGPExtension' => '1.3.6.1.4.1.3401.8.1.1',
+                  'subjectAltName' => '2.5.29.17', # https://tools.ietf.org/html/rfc5280#section-4.2.1.6
+                 };
 
 my $gnupg = GnuPG::Interface::->new();
 $gnupg->options->quiet(1);
@@ -159,8 +177,10 @@ sub makeX509CertForUserID {
   my $protocol;
   my $emailaddress;
   my $humanname;
+  my $comment;
   my $subject;
   my $ret = [];
+  my @subjectAltNames;
 
   if ($userid =~ /^\s+/) {
     err("We will not process User IDs with leading whitespace\n");
@@ -176,25 +196,41 @@ sub makeX509CertForUserID {
   }
   # FIXME: do we want to rule out any other forms of User ID?
 
-
-  if ($userid =~ /^(.*)\s+<([^><@\s]+\@$RE{net}{domain})>$/ ) {
+  if ($userid =~ /^([^()]*)\s+(\((.*)\)\s+)?<([^><@\s]+\@$RE{net}{domain})>$/ ) {
     # this is a typical/expected OpenPGP User ID.
+
     $humanname = $1;
-    $emailaddress = $2;
+    $comment = $3;
+    $emailaddress = $4;
+
+    # We're stripping arbitrary amounts of whitespace between the
+    # name, the comment, and the e-mail address here.  if that
+    # whitespace is anything but " " then the OpenPGP User ID will not
+    # be reconstructible from the string.
+    my $reconstructeduid;
+    if (defined($comment)) {
+      $reconstructeduid = sprintf('%s (%s) <%s>', $humanname, $comment, $emailaddress);
+    } else {
+      $reconstructeduid = sprintf('%s <%s>', $humanname, $emailaddress);
+    }
+    if ($userid ne $reconstructeduid) {
+      err("This OpenPGP User ID could not be reconstructed from the X.509 certificate we would generate.  Maybe a whitespace issue?\n");
+      return $ret;
+    }
+
     $subject = [
                 [ {
                    'type' => $dntypes->{'CN'},
                    'value' => {
-                               'printableString' => $humanname,
-                              },
-                  } ],
-                [ {
-                   'type' => $dntypes->{'emailAddress'},
-                   'value' => {
-                               'ia5String' => $emailaddress,
+                               'utf8String' => $humanname,
                               },
                   } ],
                ];
+    push(@{ $subject }, [ { 'type' => $dntypes->{'PSEUDO'},
+                            'value' => { 'utf8String' => $comment } } ] )
+      if defined($comment);
+
+    push(@subjectAltNames, { 'rfc822Name' => $emailaddress });
   } elsif ($userid =~ /^(https|ssh|smtps?|ike|postgresql|imaps?|submission):\/\/($RE{net}{domain})$/) {
     $protocol = $1;
     $hostname = $2;
@@ -204,10 +240,22 @@ sub makeX509CertForUserID {
                                 'printableString' => $hostname
                                },
                    } ] ];
+    push(@subjectAltNames, { 'dNSName' => $hostname });
   } else {
-    # what should we do here?  Maybe we just assume this is a bare Human Name?
+    # Maybe we just assume this is a bare Human Name?
+
+    # what if it's a human name plus a comment?  should we treat the
+    # comment like a pseudonym, as above?
     err("Assuming '%s' is a bare human name.\n", $userid);
     $humanname = $userid;
+    $subject = [
+                [ {
+                   'type' => $dntypes->{'CN'},
+                   'value' => {
+                               'printableString' => $humanname,
+                              },
+                  } ],
+               ];
   }
 
   foreach my $gpgkey ($gnupg->get_public_keys('='.$userid)) {
@@ -235,7 +283,21 @@ sub makeX509CertForUserID {
         err("key 0x%s is algorithm %d (not RSA) -- we currently only handle RSA\n", $subkey->fingerprint->as_hex_string, $subkey->algo_num);
         next;
       }
-      # FIXME: reject/skip over revoked/expired keys.
+      # FIXME: reject/skip over revoked keys.
+      if (defined($subkey->{expiration_date}) &&
+          $subkey->{expiration_date} <= time()) {
+        err("key 0x%s is expired -- skipping\n", $subkey->fingerprint->as_hex_string);
+        next;
+      }
+      if ($subkey->{usage_flags} =~ /D/) {
+        err("key 0x%s is disabled -- skipping\n", $subkey->fingerprint->as_hex_string);
+        next;
+      }
+      if ($subkey->{usage_flags} !~ /a/) {
+        err("key 0x%s is not authentication-capable -- skipping\n", $subkey->fingerprint->as_hex_string);
+        next
+      }
+      err("making certificate for key 0x%s\n", $subkey->fingerprint->as_hex_string);
 
       my $pubkey = { 'modulus' => @{$subkey->pubkey_data}[0],
                      'exponent' => @{$subkey->pubkey_data}[1],
@@ -266,12 +328,20 @@ sub makeX509CertForUserID {
       push(@extensions, { 'extnID' => $extensions->{'PGPExtension'},
                           'extnValue' => $pgpeval
                         });
+      if (@subjectAltNames) {
+        my $saneval = $san->encode(\@subjectAltNames);
+        print $san->{error}
+          if (!defined($saneval));
+        push(@extensions, { 'extnID' => $extensions->{'subjectAltName'},
+                            'extnValue' => $saneval
+                          });
+      }
 
       # FIXME: base some keyUsage extensions on the type of User ID
       # and on the usage flags of the key in question.
 
       # if 'a' is present
-      # if protocol =~ /^http|ssh|smtps?|postgresql|imaps?|submission$/ then set TLS server eKU + ???
+      # if protocol =~ /^https|smtps?|postgresql|imaps?|submission$/ then set TLS server eKU + ???
       # if protocol eq 'ike' then ??? (ask micah)
       # if protocol =~ /^smtps?$/ then set TLS client + ???
       # if defined($humanname) then set TLS client + ???
@@ -292,8 +362,10 @@ sub makeX509CertForUserID {
       # FIXME: add subjectAltName that matches the type of information
       # we believe we're working with (see the cert-id draft).
 
-      # FIXME: if @sans is present, add them as subjectAltNames (do we
-      # want to do this? maybe this should be optional).
+      # if @sans is present, should we add them as subjectAltNames? i
+      # don't think so.  this certificate should be just for the User
+      # ID requested.  The user can always make another certificate
+      # for the other user IDs and use that one.
 
 
       my $newcert = {
@@ -336,7 +408,7 @@ sub makeX509CertForUserID {
 
       my $dd = $cert->encode($newcert);
 
-      push(@{$ret}, $dd);
+      push(@{$ret}, { 'der' => $dd, 'fpr' => $subkey->fingerprint->as_hex_string});
     }
   }
   return $ret;
@@ -344,5 +416,24 @@ sub makeX509CertForUserID {
 
 
 foreach $cert ( @{ makeX509CertForUserID($ARGV[0]) } ) {
-  printf("-----BEGIN CERTIFICATE-----\n%s-----END CERTIFICATE-----\n", encode_base64($cert));
+  if (defined($ENV{OPENPGP2X509_EMIT_PKCS12})) {
+    # FIXME: figure out how to do this with certtool instead of openssl;
+    # the PKCS12 files i've tried to generate from certtool --to-p12
+    # can't be loaded by iceweasel for some reason.
+
+    # FIXME: don't do this horrific shell nastiness.  be nicer!
+    $ENV{CERTOUTPUT} = sprintf("-----BEGIN CERTIFICATE-----\n%s-----END CERTIFICATE-----\n",
+                               encode_base64($cert->{'der'}));
+    $ENV{FPR} = $cert->{'fpr'};
+    $ENV{OPENPGP_UID} = $ARGV[0];
+
+    # Note that while pkcs12(1ssl) claims that the order doesn't
+    # matter, in fact, this doesn't work if you emit the certificate
+    # before you emit the key.
+    system('(gpg --export-options export-reset-subkey-passwd --export-secret-subkeys "0x$FPR"\! |'.
+           'openpgp2ssh "$FPR" && printf "%s" "$CERTOUTPUT") |'.
+           'openssl pkcs12 -export -name "$OPENPGP_UID"');
+  } else {
+    printf("-----BEGIN CERTIFICATE-----\n%s-----END CERTIFICATE-----\n", encode_base64($cert->{'der'}));
+  }
 }

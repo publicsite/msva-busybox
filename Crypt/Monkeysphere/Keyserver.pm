@@ -82,11 +82,20 @@ sub _read_keyserver_from_gpg_conf() {
   if (-f $gpgconf) {
     if (-r $gpgconf) {
       my %gpgconfig = Config::General::ParseConfig($gpgconf);
-      if ($gpgconfig{keyserver} =~ /^(((hkps?|hkpms|finger|ldap):\/\/)?$RE{net}{domain})$/) {
-	$self->log('debug', "Using keyserver %s from the GnuPG configuration file (%s)\n", $1, $gpgconf);
-	return $1;
+      if (! defined $gpgconfig{keyserver}) {
+	$self->log('debug', "No keyserver line found in GnuPG configuration file (%s)\n", $gpgconf);
       } else {
-	$self->log('error', "Not a valid keyserver (from gpg config %s):\n  %s\n", $gpgconf, $gpgconfig{keyserver});
+        if (ref($gpgconfig{keyserver}) eq 'ARRAY') {
+          # use the last keyserver entry if there is more than one.
+          $self->log('debug', "more than one keyserver line found in GnuPG configuration file (%s), using last one found\n", $gpgconf);
+          $gpgconfig{keyserver} = pop(@{$gpgconfig{keyserver}});
+        }
+        if ($gpgconfig{keyserver} =~ /^(((hkps?|hkpms|finger|ldap):\/\/)?$RE{net}{domain})$/) {
+          $self->log('debug', "Using keyserver %s from the GnuPG configuration file (%s)\n", $1, $gpgconf);
+          return $1;
+        } else {
+          $self->log('error', "Not a valid keyserver (from gpg config %s):\n  %s\n", $gpgconf, $gpgconfig{keyserver});
+        }
       }
     } else {
       $self->log('error', "The GnuPG configuration file (%s) is not readable\n", $gpgconf);

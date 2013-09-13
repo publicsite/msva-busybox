@@ -45,7 +45,7 @@
   # we need the version of GnuPG::Interface that knows about pubkey_data, etc:
   use GnuPG::Interface 0.43;
 
-  $VERSION = '0.9.1';
+  $VERSION = '0.9.2';
 
   my $gnupg = GnuPG::Interface::->new();
   $gnupg->options->quiet(1);
@@ -461,7 +461,7 @@
 
   sub pem2der {
     my $pem = shift;
-    my @lines = split(/\n/, $pem);
+    my @lines = split(/\r?\n/, $pem);
     my @goodlines = ();
     my $ready = 0;
     foreach my $line (@lines) {

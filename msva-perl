@@ -29,6 +29,8 @@ $server->run(host=>'127.0.0.1',
              msva=>$server);
 __END__
 
+=encoding utf8
+
 =head1 NAME
 
 msva-perl - Perl implementation of a Monkeysphere Validation Agent
