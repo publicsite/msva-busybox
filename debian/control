@@ -4,9 +4,9 @@ Priority: extra
 Maintainer: Daniel Kahn Gillmor <dkg@fifthhorseman.net>
 Uploaders: Micah Anderson <micah@debian.org>
 Build-Depends:
- debhelper (>= 7.0),
+ debhelper (>= 9),
  perl
-Standards-Version: 3.9.3
+Standards-Version: 3.9.4
 Homepage: http://web.monkeysphere.info/
 Vcs-Git: git://git.monkeysphere.info/msva-perl
 
