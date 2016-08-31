@@ -1,6 +1,6 @@
 msva-perl usr/bin
 msva-query-agent usr/bin
-gpgkeys_hkpms usr/lib/gnupg
+gpgkeys_hkpms usr/lib/gnupg1
 Net/Server/MSVA.pm usr/share/perl5/Net/Server
 Crypt/Monkeysphere/*.pm usr/share/perl5/Crypt/Monkeysphere
 Crypt/Monkeysphere/MSVA/*.pm usr/share/perl5/Crypt/Monkeysphere/MSVA
